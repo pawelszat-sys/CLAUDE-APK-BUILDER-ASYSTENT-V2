@@ -12,8 +12,8 @@ android {
         applicationId = "app.asystent.mieszkania"
         minSdk = 23
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.5.0"
+        versionCode = 9
+        versionName = "0.5.1"
     }
 
     buildTypes {

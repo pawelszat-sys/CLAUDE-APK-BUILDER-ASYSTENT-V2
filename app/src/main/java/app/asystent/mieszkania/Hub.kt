@@ -21,6 +21,7 @@ import app.asystent.mieszkania.data.Gemini
 import app.asystent.mieszkania.data.IndoorState
 import app.asystent.mieszkania.data.LightState
 import app.asystent.mieszkania.data.Locker
+import app.asystent.mieszkania.data.Net
 import app.asystent.mieszkania.data.LockerSource
 import app.asystent.mieszkania.data.OpenMeteo
 import app.asystent.mieszkania.data.OutdoorState
