@@ -4,6 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,7 +59,7 @@ private const val SETTINGS = 5
 @Composable
 private fun TopBar(onSettings: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+        Modifier.statusBarsPadding().fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(9.dp).background(Palette.Signal, CircleShape))
@@ -82,7 +93,7 @@ fun AppRoot(vm: Hub) {
         return
     }
 
-    Scaffold(containerColor = Palette.Ink) { pad ->
+    Scaffold(containerColor = Palette.Ink, contentWindowInsets = WindowInsets(0, 0, 0, 0)) { pad ->
         BoxWithConstraints(Modifier.padding(pad).fillMaxSize()) {
             val wide = maxWidth > maxHeight * 1.25f
             val screen: @Composable () -> Unit = {
@@ -112,7 +123,11 @@ fun AppRoot(vm: Hub) {
                             )
                         }
                     }
-                    Column(Modifier.weight(1f)) {
+                    Column(
+                        Modifier.weight(1f).windowInsetsPadding(
+                            WindowInsets.systemBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom),
+                        ),
+                    ) {
                         TopBar { tab = SETTINGS }
                         Box(Modifier.weight(1f)) { screen() }
                     }
@@ -121,19 +136,39 @@ fun AppRoot(vm: Hub) {
                 Column(Modifier.fillMaxSize()) {
                     TopBar { tab = SETTINGS }
                     Box(Modifier.weight(1f)) { screen() }
-                    NavigationBar(containerColor = Palette.Panel) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(Palette.Panel)
+                            .navigationBarsPadding(),
+                    ) {
                         tabs.forEachIndexed { i, t ->
-                            NavigationBarItem(
-                                selected = tab == i,
-                                onClick = { tab = i },
-                                icon = { PathIcon(t.icon, if (tab == i) Palette.OnLamp else Palette.Slate) },
-                                label = { Text(t.label, fontSize = 11.sp) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedTextColor = Palette.Frost,
-                                    unselectedTextColor = Palette.Slate,
-                                    indicatorColor = Palette.Lamp,
-                                ),
-                            )
+                            val sel = tab == i
+                            Column(
+                                Modifier
+                                    .weight(1f)
+                                    .clickable { tab = i }
+                                    .padding(top = 8.dp, bottom = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(56.dp, 30.dp)
+                                        .clip(RoundedCornerShape(15.dp))
+                                        .background(if (sel) Palette.Lamp else Color.Transparent),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    PathIcon(t.icon, if (sel) Palette.OnLamp else Palette.Slate)
+                                }
+                                Text(
+                                    t.label,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (sel) Palette.Frost else Palette.Slate,
+                                    modifier = Modifier.padding(top = 3.dp),
+                                )
+                            }
                         }
                     }
                 }

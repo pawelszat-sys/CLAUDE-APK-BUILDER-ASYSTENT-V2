@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -76,7 +77,15 @@ fun KioskScreen(vm: Hub) {
     val soft = fg.copy(alpha = 0.45f * k)
     val faint = fg.copy(alpha = 0.32f * k)
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(bg)) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(bg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { vm.kiosk.value = false },
+    ) {
         val w = maxWidth.value
         val h = maxHeight.value
         val sc = scale / 100f
@@ -173,36 +182,5 @@ fun KioskScreen(vm: Hub) {
                 )
             }
         }
-
-        Row(
-            Modifier.align(Alignment.TopStart).padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            listOf("A−" to -10, "A+" to 10).forEach { (label, d) ->
-                Text(
-                    label,
-                    fontSize = 14.sp,
-                    color = soft,
-                    modifier = Modifier
-                        .background(fg.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
-                        .border(1.dp, fg.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
-                        .clickable { vm.setKioskScale(scale + d) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-
-        Text(
-            "✕",
-            fontSize = 14.sp,
-            color = soft,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(18.dp)
-                .background(fg.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
-                .border(1.dp, fg.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
-                .clickable { vm.kiosk.value = false }
-                .padding(horizontal = 18.dp, vertical = 8.dp),
-        )
     }
 }
