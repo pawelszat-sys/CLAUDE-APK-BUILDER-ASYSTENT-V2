@@ -231,10 +231,18 @@ setInterval(pull,2000);pull();
 
 function wxGlyph(o,s){return (o.code===0||o.code===1)?ico('sun',s,'color:var(--lamp)'):ico('cloud',s,'color:var(--slate)');}
 function airTone(w){return w<50?'#4cc38a':w<100?'#f2b544':'#f0735f';}
-function wxCard(o){
+function wxExtra(mini){
+ let h='';
+ if(S&&S.briefing)h+='<p style="font-size:15px;line-height:1.4;margin-top:12px">'+esc(S.briefing)+'</p>';
+ const D=S&&S.forecast&&S.forecast.days;
+ if(mini&&D&&D.length)h+='<div style="display:flex;gap:8px;margin-top:12px">'+D.map(d=>'<div style="flex:1;text-align:center;background:var(--high);border-radius:14px;padding:10px 0"><div class="note" style="margin:0">'+esc(d.l)+'</div><div style="margin:4px 0;display:flex;justify-content:center">'+wxGlyph({code:d.c},28)+'</div><div style="font-size:14px;font-weight:500">'+f(d.min,0)+'° / '+f(d.max,0)+'°</div><div class="note" style="margin:2px 0 0;'+((d.r||0)>=50?'color:var(--lamp)':'')+'">'+(d.r==null?'':d.r+'%')+'</div></div>').join('')+'</div>';
+ return h;
+}
+function srcSel(){const s=S.outdoorSource||'open';return '<div class="card"><div class="cap">Źródło danych zewnętrznych</div><div class="seg"><button data-src="open" class="'+(s==='open'?'on':'')+'">Open-Meteo</button><button data-src="locker" class="'+(s==='locker'?'on':'')+'">Paczkomat</button></div></div>';}
+function wxCard(o,mini){
  return '<div class="card"><div class="cap">Pogoda na zewnątrz</div><div class="wx">'+wxGlyph(o,56)+
- '<div><div class="t">'+(o.tempC==null?'—':f(o.tempC)+'°')+'</div><div class="note" style="font-size:15px">'+esc(o.weatherText||'Brak opisu')+'</div></div>'+
- '<div class="r">Wiatr: '+f(o.windKmh)+' km/h<br>Opady: '+(o.rainPct==null?'—':o.rainPct+'%')+'</div></div></div>';
+ '<div><div class="t">'+(o.tempC==null?'—':f(o.tempC)+'<span style="font-size:20px;color:var(--slate);margin-left:3px">°C</span>')+'</div><div class="note" style="font-size:15px">'+esc(o.weatherText||'Brak opisu')+'</div></div>'+
+ '<div class="r">Wiatr: '+f(o.windKmh)+' km/h<br>Opady: '+(o.rainPct==null?'—':o.rainPct+'%')+'</div></div>'+wxExtra(mini)+'</div>';
 }
 function airCard(o,detail){
  if(o.pm25==null&&o.pm10==null)return '<div class="card"><div class="cap">Jakość powietrza</div><p style="margin-top:8px;color:var(--slate)">Brak danych o pyłach.</p></div>';
@@ -245,6 +253,26 @@ function airCard(o,detail){
  '<div class="note">Pasek pokazuje, jaką część normy zajmują pyły.</div>'+
  '<div class="note">PM2,5: '+f(o.pm25)+' ('+f(o.pm25Pct,0)+'% normy), PM10: '+f(o.pm10)+' ('+f(o.pm10Pct,0)+'% normy)</div>'+
  (o.airSource?'<div class="note">Źródło: '+esc(o.airSource)+'</div>':'')+'</div>';
+}
+let fcMode=0;
+function fcHTML(F){
+ if(!F||!F.hours||!F.hours.length)return '';
+ const ni=F.nowIndex,H=F.hours;
+ let h='<div class="card"><div class="cap">Czy będzie padać?</div><p style="font-size:18px;font-weight:500;margin-top:6px">'+esc(F.rainText||'Brak danych prognozy.')+'</p></div>';
+ h+='<div class="card"><div class="cap">Najbliższe godziny</div><div style="display:flex;gap:18px;overflow-x:auto;margin-top:10px">'+H.slice(ni,ni+12).map(x=>'<div style="text-align:center;flex:none"><div class="note" style="margin:0">'+x.l+'</div><div style="font-size:20px;font-weight:600;margin-top:4px">'+f(x.t,0)+'°</div><div class="note" style="margin:2px 0 0;'+((x.r||0)>=50?'color:var(--lamp)':'')+'">'+(x.r==null?'':x.r+'%')+'</div></div>').join('')+'</div></div>';
+ const key=fcMode?'h':'t',vals=H.map(x=>x[key]),ok=vals.filter(v=>v!=null);
+ h+='<div class="card"><div class="cap">Ostatnie 24 h i prognoza na 24 h</div><div class="seg"><button data-fm="0" class="'+(fcMode?'':'on')+'">Temperatura</button><button data-fm="1" class="'+(fcMode?'on':'')+'">Wilgotność</button></div>';
+ if(ok.length<2)h+='<p class="note">Brak danych.</p>';
+ else{
+  const lo=Math.min(...ok),hi=Math.max(...ok),sp=Math.max(hi-lo,1),n=vals.length;
+  const X=i=>i*300/(n-1),Y=v=>10+(1-(v-lo)/sp)*100;
+  const seg=(a,b)=>{let d='',st=false;for(let i=a;i<=b;i++){const v=vals[i];if(v==null){st=false;continue;}d+=(st?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);st=true;}return d;};
+  h+='<svg viewBox="0 0 300 120" style="width:100%;height:auto"><line x1="'+X(ni)+'" y1="0" x2="'+X(ni)+'" y2="120" stroke="var(--line)"/><path d="'+seg(0,ni)+'" fill="none" stroke="var(--lamp)" stroke-width="2.5" stroke-linecap="round"/><path d="'+seg(ni,n-1)+'" fill="none" stroke="var(--lamp)" stroke-opacity=".55" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/>'+(vals[ni]!=null?'<circle cx="'+X(ni)+'" cy="'+Y(vals[ni])+'" r="4" fill="var(--lamp)"/>':'')+'</svg>';
+  h+='<div class="row note"><span>−24 h</span><span>teraz</span><span>+24 h</span></div><div class="note">Zakres: '+f(lo,0)+'–'+f(hi,0)+(fcMode?' %':' °C')+'. Linia ciągła to historia, przerywana to prognoza. Źródło: Open-Meteo.</div>';
+ }
+ h+='</div>';
+ if(F.days&&F.days.length)h+='<div class="card"><div class="cap">Najbliższe dni</div>'+F.days.map(d=>'<div class="row" style="margin-top:10px"><span style="flex:1;font-size:16px">'+esc(d.l)+'</span><span style="font-weight:500">'+f(d.min,0)+'° / '+f(d.max,0)+'°</span><span class="note" style="width:88px;text-align:right;margin:0">'+(d.r==null?'':'opady '+d.r+'%')+'</span></div>').join('')+'</div>';
+ return h;
 }
 function render(){
  const o=S.outdoor,i=S.indoor,a=S.advice,l=S.light,as=S.assistant;
@@ -261,8 +289,8 @@ function render(){
   '<div class="card"><div class="cap">W domu</div><div class="val">'+f(i.tempC)+'<small>°C</small></div><div class="note">'+inNote+'</div></div>'+
   '<div class="card"><div class="cap">Wilgotność</div><div class="val">'+f(i.humidity,0)+'<small>%</small></div><div class="note">'+inNote+'</div></div>'+
   '<div class="card"><div class="cap">Ciśnienie</div><div class="val">'+f(i.pressure,0)+'<small>hPa</small></div><div class="note">'+inNote+'</div></div></div>'+
-  wxCard(o)+airCard(o)+'<button class="btn" id="bK2">Tryb kiosku (pełny ekran)</button></div></div>';
- $('v-weather').innerHTML='<div class="h1">Pogoda</div><div class="stack">'+wxCard(o)+airCard(o,true)+
+  wxCard(o,true)+airCard(o)+'<button class="btn" id="bK2">Tryb kiosku (pełny ekran)</button></div></div>';
+ $('v-weather').innerHTML='<div class="h1">Pogoda</div><div class="stack">'+srcSel()+wxCard(o,false)+fcHTML(S.forecast)+airCard(o,true)+
   '<div class="card"><div class="cap">Źródła i odświeżanie</div><p style="margin-top:6px">Temperatura: '+esc(o.tempSource||'brak')+'. Pyły: '+esc(o.airSource||'brak')+'. Wiatr i opady: Open-Meteo.</p>'+
   (o.updated?'<div class="note">Ostatnie sprawdzenie: '+hm(o.updated)+'</div>':'')+(o.error?'<div class="err">'+esc(o.error)+'</div>':'')+
   '<button class="btn" id="bRef" style="margin-top:10px;height:44px">Odśwież teraz</button></div></div>';
@@ -270,7 +298,8 @@ function render(){
   '<div class="card"><div class="cap">Temperatura</div><div class="val">'+f(i.tempC)+'<small>°C</small></div></div>'+
   '<div class="card"><div class="cap">Wilgotność</div><div class="val">'+f(i.humidity,0)+'<small>%</small></div></div>'+
   '<div class="card"><div class="cap">Ciśnienie</div><div class="val">'+f(i.pressure,0)+'<small>hPa</small></div></div></div>'+
-  '<div class="card"><div class="cap">Ostatnie 24 godziny</div><p style="margin-top:8px;color:var(--slate)">Brak danych z czujników. Wykres pojawi się, gdy podłączymy ESP32.</p></div></div>';
+  '<div class="card"><div class="cap">Czujnik ESP32</div><p class="note" style="font-size:14px;margin-top:6px">'+esc(S.espStatus||'Dodaj adres ESP32 w ustawieniach aplikacji.')+'</p></div><div class="card" id="hcard"></div></div>';
+ drawHist();
  const on=l.on===true;
  $('v-light').innerHTML='<div class="h1">Światło</div><div style="text-align:center"><button class="bulb'+(on?' on':'')+'" id="bulb" aria-label="Przełącz światło">'+ico('bulb',72)+'</button>'+
   '<div style="font-size:24px;font-weight:600">'+(l.on==null?'Stan nieznany':on?'Włączone':'Wyłączone')+'</div>'+
@@ -281,8 +310,8 @@ function render(){
   (as.q?'<div class="u">'+esc(as.q)+'</div>':'')+(as.a?'<div class="a">'+esc(as.a)+'</div>':'');
  $('hist').innerHTML=as.history.length?as.history.map(x=>'<div class="msg '+x.r+'">'+esc(x.t)+'</div>').join(''):'<div class="note" style="margin-top:12px">Na razie pusto.</div>';
  // kiosk
- $('kw').textContent=o.tempC==null?'—':f(o.tempC,0)+'°';$('kic').innerHTML=wxGlyph(o,96).replace('<svg','<svg class="k-ic"');
- $('kcity').textContent=(S.city||'').toUpperCase();$('ki').textContent=i.tempC==null?'—':f(i.tempC)+'°';$('kh').textContent=f(i.humidity,0)+' % wilg.';
+ $('kw').innerHTML=o.tempC==null?'—':f(o.tempC,0)+'<span style="font-size:.3em;vertical-align:top;opacity:.5">°C</span>';$('kic').innerHTML=wxGlyph(o,96).replace('<svg','<svg class="k-ic"');
+ $('kcity').textContent=(S.city||'').toUpperCase();$('ki').innerHTML=i.tempC==null?'—':f(i.tempC)+'<span style="font-size:.3em;vertical-align:top;opacity:.5">°C</span>';$('kh').textContent=f(i.humidity,0)+' % wilg.';
  bind();
 }
 function bind(){
@@ -347,6 +376,27 @@ function orb(cv){
  fit();frame();return{set(v){m=v;}};
 }
 const oA=orb($('orbA'));
+$('v-weather').addEventListener('click',e=>{const b=e.target.closest('[data-fm]');if(b){fcMode=+b.dataset.fm;render();}});
+let HIST=[],hmet=0,hrng=0;
+async function loadHist(){const j=await api('/api/history');if(j){HIST=j;drawHist();}}
+setInterval(loadHist,30000);loadHist();
+function drawHist(){
+ const el=$('hcard');if(!el)return;
+ const span=hrng?7*864e5:864e5,from=Date.now()-span,k=['tp','h','p'][hmet];
+ const D=HIST.filter(x=>x.t>=from),V=D.map(x=>x[k]),ok=V.filter(v=>v!=null);
+ let h='<div class="cap">Historia z czujnika ESP32</div><div class="seg"><button data-hm="0" class="'+(hmet===0?'on':'')+'">Temperatura</button><button data-hm="1" class="'+(hmet===1?'on':'')+'">Wilgotność</button><button data-hm="2" class="'+(hmet===2?'on':'')+'">Ciśnienie</button></div><div class="seg"><button data-hr="0" class="'+(hrng?'':'on')+'">24 godziny</button><button data-hr="1" class="'+(hrng?'on':'')+'">7 dni</button></div>';
+ if(ok.length<2)h+='<p class="note">Za mało odczytów. Zapisujemy jeden co 5 minut, wykres pojawi się po chwili od podłączenia ESP32.</p>';
+ else{
+  const lo=Math.min(...ok),hi=Math.max(...ok),sp=Math.max(hi-lo,1),X=t=>(t-from)/span*300,Y=v=>10+(1-(v-lo)/sp)*100;
+  let d='',st=false;
+  D.forEach((x,i)=>{const v=V[i];if(v==null||(i>0&&x.t-D[i-1].t>18e5))st=false;if(v==null)return;d+=(st?'L':'M')+X(x.t).toFixed(1)+' '+Y(v).toFixed(1);st=true;});
+  const dg=hmet===2?0:1;
+  h+='<svg viewBox="0 0 300 120" style="width:100%;height:auto"><path d="'+d+'" fill="none" stroke="var(--lamp)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="row note"><span>'+(hrng?'−7 dni':'−24 h')+'</span><span>teraz</span></div><div class="note">Zakres: '+f(lo,dg)+'–'+f(hi,dg)+' '+['°C','%','hPa'][hmet]+', odczytów: '+ok.length+'.</div>';
+ }
+ el.innerHTML=h;
+}
+$('v-indoor').addEventListener('click',e=>{const a=e.target.closest('[data-hm]'),b=e.target.closest('[data-hr]');if(a){hmet=+a.dataset.hm;drawHist();}if(b){hrng=+b.dataset.hr;drawHist();}});
+$('v-weather').addEventListener('click',e=>{const b=e.target.closest('[data-src]');if(b)act('/api/source',{s:b.dataset.src});});
 </script>
 </body>
 </html>

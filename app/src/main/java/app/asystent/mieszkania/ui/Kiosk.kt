@@ -127,13 +127,7 @@ fun KioskScreen(vm: Hub) {
                     }
                     1 -> {
                         WeatherGlyph(out.code, (minOf(w * 0.20f, h * 0.26f) * sc).dp)
-                        Text(
-                            if (out.tempC == null) "—" else "${fmt(out.tempC, 0)}°",
-                            fontSize = bigSp.sp,
-                            lineHeight = (bigSp * 1.05f).sp,
-                            fontWeight = FontWeight.ExtraLight,
-                            color = main,
-                        )
+                        BigTemp(fmt(out.tempC, 0), bigSp, main, soft)
                         Text(
                             vm.settings.city.uppercase(PL),
                             fontSize = (minOf(w * 0.04f, h * 0.06f) * sc).sp,
@@ -143,13 +137,7 @@ fun KioskScreen(vm: Hub) {
                         )
                     }
                     else -> {
-                        Text(
-                            if (ind.tempC == null) "—" else "${fmt(ind.tempC)}°",
-                            fontSize = bigSp.sp,
-                            lineHeight = (bigSp * 1.05f).sp,
-                            fontWeight = FontWeight.ExtraLight,
-                            color = main,
-                        )
+                        BigTemp(fmt(ind.tempC), bigSp, main, soft)
                         Text(
                             "${fmt(ind.humidity, 0)} % wilg.",
                             fontSize = (minOf(w * 0.06f, h * 0.09f) * sc).sp,
@@ -182,5 +170,27 @@ fun KioskScreen(vm: Hub) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun BigTemp(value: String, sp: Float, main: Color, soft: Color) {
+    Row(verticalAlignment = Alignment.Top) {
+        Text(
+            value,
+            fontSize = sp.sp,
+            lineHeight = (sp * 1.05f).sp,
+            fontWeight = FontWeight.ExtraLight,
+            color = main,
+            softWrap = false,
+        )
+        Text(
+            "°C",
+            fontSize = (sp * 0.3f).sp,
+            fontWeight = FontWeight.Light,
+            color = soft,
+            softWrap = false,
+            modifier = Modifier.padding(start = 3.dp, top = (sp * 0.1f).dp),
+        )
     }
 }

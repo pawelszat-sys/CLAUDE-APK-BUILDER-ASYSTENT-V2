@@ -66,6 +66,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.asystent.mieszkania.Hub
 import app.asystent.mieszkania.data.AdviceState
+import app.asystent.mieszkania.data.Briefing
+import app.asystent.mieszkania.data.ForecastState
 import app.asystent.mieszkania.data.IndoorState
 import app.asystent.mieszkania.data.OutdoorState
 import app.asystent.mieszkania.data.weatherText
@@ -96,6 +98,7 @@ fun StartScreen(vm: Hub) {
     val ind by vm.indoor.collectAsStateWithLifecycle()
     val adv by vm.advice.collectAsStateWithLifecycle()
     val hasKey by vm.hasGeminiKey.collectAsStateWithLifecycle()
+    val fc by vm.forecast.collectAsStateWithLifecycle()
     val name = vm.settings.userName.trim()
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -139,13 +142,13 @@ fun StartScreen(vm: Hub) {
     val rest: @Composable ColumnScope.() -> Unit = {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Tile("Na zewnątrz", fmt(out.tempC), "°C", out.tempSource.ifEmpty { "brak danych" }, Modifier.weight(1f).fillMaxHeight())
-            Tile("W domu", fmt(ind.tempC), "°C", indoorNote(ind), Modifier.weight(1f).fillMaxHeight())
+            Tile("W domu", fmt(ind.tempC), "°C", comfortT(ind), Modifier.weight(1f).fillMaxHeight())
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Tile("Wilgotność", fmt(ind.humidity, 0), "%", indoorNote(ind), Modifier.weight(1f).fillMaxHeight())
-            Tile("Ciśnienie", fmt(ind.pressure, 0), "hPa", indoorNote(ind), Modifier.weight(1f).fillMaxHeight())
+            Tile("Wilgotność", fmt(ind.humidity, 0), "%", comfortH(ind), Modifier.weight(1f).fillMaxHeight())
+            Tile("Ciśnienie", fmt(ind.pressure, 0), "hPa", comfortP(ind), Modifier.weight(1f).fillMaxHeight())
         }
-        WeatherPanel(out)
+        WeatherPanel(out, fc)
         AirPanel(out)
         ClapToggleRow(vm)
         OutlinedButton(
@@ -172,6 +175,27 @@ fun StartScreen(vm: Hub) {
             rest()
         }
     }
+}
+
+private fun comfortT(i: IndoorState): String = when {
+    i.tempC == null -> indoorNote(i)
+    i.tempC < 18.0 -> "Chłodno"
+    i.tempC <= 24.0 -> "Komfort"
+    else -> "Ciepło"
+}
+
+private fun comfortH(i: IndoorState): String = when {
+    i.humidity == null -> indoorNote(i)
+    i.humidity < 30.0 -> "Sucho"
+    i.humidity <= 60.0 -> "Optymalna"
+    else -> "Wilgotno"
+}
+
+private fun comfortP(i: IndoorState): String = when {
+    i.pressure == null -> indoorNote(i)
+    i.pressure < 1000.0 -> "Niskie"
+    i.pressure <= 1025.0 -> "Normalne"
+    else -> "Wysokie"
 }
 
 private fun indoorNote(i: IndoorState): String =
@@ -222,31 +246,71 @@ private fun AdviceCard(adv: AdviceState, hasKey: Boolean, onTap: () -> Unit) {
 }
 
 @Composable
-private fun WeatherPanel(out: OutdoorState) {
+private fun WeatherPanel(out: OutdoorState, fc: ForecastState, mini: Boolean = true) {
+    val brief = remember(out.tempC, out.code, fc) { Briefing.make(out.tempC, out.code, fc) }
     Panel {
         Caption("Pogoda na zewnątrz")
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             WeatherGlyph(out.code, 64.dp)
             Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                Text(
-                    if (out.tempC == null) "—" else "${fmt(out.tempC)}°",
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Palette.Frost,
-                )
-                Text(
-                    weatherText(out.code).ifEmpty { "Brak opisu" },
-                    fontSize = 15.sp,
-                    color = Palette.Slate,
-                )
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        fmt(out.tempC),
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Palette.Frost,
+                        softWrap = false,
+                    )
+                    Text(
+                        "°C",
+                        fontSize = 20.sp,
+                        color = Palette.Slate,
+                        softWrap = false,
+                        modifier = Modifier.padding(start = 3.dp, bottom = 9.dp),
+                    )
+                }
+                Text(weatherText(out.code).ifEmpty { "Brak opisu" }, fontSize = 15.sp, color = Palette.Slate)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("Wiatr: ${fmt(out.windKmh)} km/h", fontSize = 14.sp, color = Palette.Slate)
-                Text(
-                    "Opady: ${out.rainPct?.let { "$it%" } ?: "—"}",
-                    fontSize = 14.sp,
-                    color = Palette.Slate,
-                )
+                Text("Opady: ${out.rainPct?.let { "$it%" } ?: "—"}", fontSize = 14.sp, color = Palette.Slate)
+            }
+        }
+        if (brief.isNotEmpty()) {
+            Text(
+                brief,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                color = Palette.Frost,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+        if (mini && fc.days.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                fc.days.forEach { d ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Palette.PanelHigh)
+                            .padding(vertical = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(d.label, fontSize = 12.sp, color = Palette.Slate)
+                        WeatherGlyph(d.code, 30.dp)
+                        Text(
+                            "${fmt(d.min, 0)}° / ${fmt(d.max, 0)}°",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Palette.Frost,
+                        )
+                        Text(
+                            if (d.rainPct == null) "" else "${d.rainPct}%",
+                            fontSize = 12.sp,
+                            color = if ((d.rainPct ?: 0) >= 50) Palette.Lamp else Palette.Slate,
+                        )
+                    }
+                }
             }
         }
     }
@@ -331,6 +395,43 @@ private fun AirPanel(out: OutdoorState) {
     }
 }
 
+@Composable
+private fun SourceChips(vm: Hub) {
+    val src by vm.outdoorSource.collectAsStateWithLifecycle()
+    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("open" to "Open-Meteo", "locker" to "Paczkomat").forEach { (k, label) ->
+            val sel = src == k
+            Text(
+                label,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (sel) Palette.OnLamp else Palette.Frost,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (sel) Palette.Lamp else Palette.PanelHigh)
+                    .clickable { vm.setOutdoorSource(k) }
+                    .padding(vertical = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SourceSelector(vm: Hub) {
+    Panel {
+        Caption("Źródło danych zewnętrznych")
+        SourceChips(vm)
+        Text(
+            "Dotyczy temperatury, wilgotności i pyłów. Gdy wybrane źródło nie odpowie, aplikacja użyje drugiego.",
+            fontSize = 12.sp,
+            color = Palette.Slate,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
 // ======================= POGODA =======================
 
 @Composable
@@ -338,7 +439,13 @@ fun WeatherScreen(vm: Hub) {
     val out by vm.outdoor.collectAsStateWithLifecycle()
     Page {
         SectionTitle("Pogoda")
-        WeatherPanel(out)
+        val fc by vm.forecast.collectAsStateWithLifecycle()
+        SourceSelector(vm)
+        WeatherPanel(out, fc, mini = false)
+        RainCard(fc)
+        HoursCard(fc)
+        TrendCard(fc)
+        DaysCard(fc)
         AirPanel(out)
         Panel {
             Caption("Źródła i odświeżanie")
@@ -372,28 +479,23 @@ fun WeatherScreen(vm: Hub) {
 @Composable
 fun HomeScreen(vm: Hub) {
     val ind by vm.indoor.collectAsStateWithLifecycle()
+    val hist by vm.indoorHistory.collectAsStateWithLifecycle()
+    val st by vm.espStatus.collectAsStateWithLifecycle()
     Page {
         SectionTitle("Mieszkanie")
+        Panel {
+            Caption("Czujnik ESP32")
+            Text(
+                st.ifEmpty { "Dodaj adres ESP32 w Ustawieniach." },
+                fontSize = 15.sp,
+                color = if (st.startsWith("Połączono")) Palette.Signal else Palette.Slate,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
         IndoorPanel("Temperatura", fmt(ind.tempC), "°C", ind)
         IndoorPanel("Wilgotność", fmt(ind.humidity, 0), "%", ind)
         IndoorPanel("Ciśnienie", fmt(ind.pressure, 0), "hPa", ind)
-        Panel {
-            Caption("Ostatnie 24 godziny")
-            Text(
-                "Brak danych z czujników. Wykres pojawi się, gdy podłączymy ESP32.",
-                fontSize = 15.sp,
-                color = Palette.Slate,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            Box(
-                Modifier
-                    .padding(top = 12.dp)
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, Palette.Line, RoundedCornerShape(12.dp)),
-            )
-        }
+        HistoryCard(hist)
     }
 }
 
@@ -510,6 +612,7 @@ fun SettingsScreen(vm: Hub) {
     var tDev by remember { mutableStateOf(s.tuyaDevice) }
     var sens by remember { mutableStateOf(s.clapSensitivity.toFloat()) }
     var saved by remember { mutableStateOf(false) }
+    var espUrl by remember { mutableStateOf(s.espUrl) }
     var sPort by remember { mutableStateOf(s.serverPort) }
     var sPin by remember { mutableStateOf(s.serverPin) }
     var srvOn by remember { mutableStateOf(s.serverEnabled) }
@@ -560,21 +663,10 @@ fun SettingsScreen(vm: Hub) {
             Caption("Paczkomat (źródło główne)")
             Spacer(Modifier.height(8.dp))
             Field("Pełny adres zapytania", locker, { locker = it; saved = false }, keyboard = KeyboardType.Uri)
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Temperatura i wilgotność z Paczkomatu (wyłącz, aby brać je z Open-Meteo)",
-                    fontSize = 14.sp,
-                    color = Palette.Frost,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(
-                    checked = lockerTemp,
-                    onCheckedChange = { lockerTemp = it; saved = false },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.OnLamp, checkedTrackColor = Palette.Lamp),
-                )
-            }
+            Spacer(Modifier.height(8.dp))
+            SourceChips(vm)
             Text(
-                "Zostaw pole puste, aby korzystać tylko z Open-Meteo.",
+                "Wybrane źródło dotyczy temperatury, wilgotności i pyłów. Puste pole adresu oznacza tylko Open-Meteo.",
                 fontSize = 12.sp,
                 color = Palette.Slate,
                 modifier = Modifier.padding(top = 4.dp),
@@ -599,6 +691,18 @@ fun SettingsScreen(vm: Hub) {
             Field("Client Secret", tSecret, { tSecret = it; saved = false }, secret = true)
             Spacer(Modifier.height(8.dp))
             Field("Device ID", tDev, { tDev = it; saved = false })
+        }
+
+        Panel {
+            Caption("ESP32 (czujniki w mieszkaniu)")
+            Spacer(Modifier.height(8.dp))
+            Field("Adres ESP32, np. http://192.168.1.50", espUrl, { espUrl = it; saved = false }, keyboard = KeyboardType.Uri)
+            Text(
+                "Aplikacja odpytuje adres/api/sensors co minutę i zapisuje historię w telefonie.",
+                fontSize = 12.sp,
+                color = Palette.Slate,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
 
         Panel {
@@ -712,6 +816,7 @@ fun SettingsScreen(vm: Hub) {
                 s.tuyaDevice = tDev
                 s.serverPort = sPort
                 s.serverPin = sPin
+                s.espUrl = espUrl
                 vm.onSettingsSaved()
                 saved = true
             },

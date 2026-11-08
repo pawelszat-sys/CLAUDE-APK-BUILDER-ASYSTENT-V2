@@ -32,8 +32,8 @@ class Settings(context: Context) {
         set(v) = putStr("lockerUrl", v)
 
     var tempFromLocker: Boolean
-        get() = p.getBoolean("tempFromLocker", true)
-        set(v) = p.edit().putBoolean("tempFromLocker", v).apply()
+        get() = p.getBoolean("tempFromLocker2", false)
+        set(v) = p.edit().putBoolean("tempFromLocker2", v).apply()
 
     var geminiKey: String
         get() = str("geminiKey", "")
@@ -94,4 +94,12 @@ class Settings(context: Context) {
     var kioskScale: Int
         get() = p.getInt("kioskScale", 100)
         set(v) = p.edit().putInt("kioskScale", v).apply()
+
+    var outdoorSource: String
+        get() = str("outdoorSource", "open")
+        set(v) = putStr("outdoorSource", v)
+
+    var espUrl: String
+        get() = str("espUrl", "")
+        set(v) = putStr("espUrl", v)
 }

@@ -40,6 +40,16 @@ class WebServer(private val hub: Hub, private val page: String, port: Int) : Nan
                     return json(Response.Status.BAD_REQUEST, "{\"error\":\"zle zapytanie\"}")
                 }
             }
+            "/api/history" -> return json(Response.Status.OK, hub.historyJson())
+            "/api/source" -> if (post) {
+                val files = HashMap<String, String>()
+                try {
+                    session.parseBody(files)
+                    hub.setOutdoorSource(JSONObject(files["postData"] ?: "{}").optString("s"))
+                } catch (e: Exception) {
+                    return json(Response.Status.BAD_REQUEST, "{\"error\":\"zle zapytanie\"}")
+                }
+            }
             else -> return json(Response.Status.NOT_FOUND, "{\"error\":\"brak\"}")
         }
         return json(Response.Status.OK, hub.stateJson())

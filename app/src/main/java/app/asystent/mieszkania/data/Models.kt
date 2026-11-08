@@ -45,3 +45,27 @@ data class AssistantState(
     val busy: Boolean = false,
     val history: List<Pair<String, String>> = emptyList(),
 )
+
+data class HourPoint(
+    val label: String,
+    val temp: Double?,
+    val hum: Double?,
+    val rainPct: Int?,
+    val code: Int?,
+)
+
+data class DayPoint(
+    val label: String,
+    val min: Double?,
+    val max: Double?,
+    val rainPct: Int?,
+    val code: Int?,
+)
+
+data class ForecastState(
+    val hours: List<HourPoint> = emptyList(),
+    val nowIndex: Int = 0,
+    val days: List<DayPoint> = emptyList(),
+    val rainText: String = "",
+    val updated: Long = 0L,
+)

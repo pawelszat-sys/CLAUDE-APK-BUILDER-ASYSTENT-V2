@@ -9,9 +9,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.NetworkInterface
 import app.asystent.mieszkania.audio.ClapDetector
 import app.asystent.mieszkania.data.AdviceState
+import app.asystent.mieszkania.data.ForecastState
+import app.asystent.mieszkania.data.Forecasts
+import app.asystent.mieszkania.data.Briefing
+import app.asystent.mieszkania.data.IndoorStore
 import app.asystent.mieszkania.data.Gemini
 import app.asystent.mieszkania.data.IndoorState
 import app.asystent.mieszkania.data.LightState
@@ -165,6 +170,7 @@ class Hub private constructor(private val app: Application) {
         if (force || now - omAt > 15 * 60_000L) {
             OpenMeteo.weather(lat, lon)?.let { omWeather = it }
             OpenMeteo.air(lat, lon)?.let { omAir = it }
+            Forecasts.fetch(lat, lon)?.let { _forecast.value = it.copy(updated = now) }
             omAt = now
         }
 
@@ -189,31 +195,32 @@ class Hub private constructor(private val app: Application) {
         val w = omWeather
         val a = omAir
 
+        val preferLocker = settings.outdoorSource == "locker"
         val lkTemp = lk?.temp
         val lkHum = lk?.hum
-        val useLkTemp = settings.tempFromLocker && lkTemp != null
-        val temp = if (useLkTemp) lkTemp else w?.tempC
+        val omTemp = w?.tempC
+        val omHum = w?.humidity
+        val useLkTemp = lkTemp != null && (preferLocker || omTemp == null)
+        val temp = if (useLkTemp) lkTemp else omTemp
         val tempSrc = when {
             temp == null -> ""
             useLkTemp -> "Paczkomat"
             else -> "Open-Meteo"
         }
-        val hum = if (settings.tempFromLocker && lkHum != null) lkHum else w?.humidity
+        val useLkHum = lkHum != null && (preferLocker || omHum == null)
+        val hum = if (useLkHum) lkHum else omHum
 
         val lk25 = lk?.pm25
         val lk10 = lk?.pm10
-        val pm25 = lk25 ?: a?.pm25
-        val pm10 = lk10 ?: a?.pm10
-        val pct25 = if (lk25 != null) (lk?.pm25Pct ?: (lk25 / 25.0 * 100.0)) else a?.pm25Pct
-        val pct10 = if (lk10 != null) (lk?.pm10Pct ?: (lk10 / 50.0 * 100.0)) else a?.pm10Pct
-        val lockerAir = lk25 != null || lk10 != null
-        val airLabel = if (lockerAir) {
-            LockerSource.levelPl(lk?.level) ?: a?.label ?: ""
-        } else {
-            a?.label ?: ""
-        }
+        val lkAir = lk25 != null || lk10 != null
+        val useLkAir = lkAir && (preferLocker || a == null)
+        val pm25 = if (useLkAir) (lk25 ?: a?.pm25) else a?.pm25
+        val pm10 = if (useLkAir) (lk10 ?: a?.pm10) else a?.pm10
+        val pct25 = if (useLkAir && lk25 != null) (lk?.pm25Pct ?: (lk25 / 25.0 * 100.0)) else a?.pm25Pct
+        val pct10 = if (useLkAir && lk10 != null) (lk?.pm10Pct ?: (lk10 / 50.0 * 100.0)) else a?.pm10Pct
+        val airLabel = if (useLkAir) (LockerSource.levelPl(lk?.level) ?: a?.label ?: "") else (a?.label ?: "")
         val airSrc = when {
-            lockerAir -> "Paczkomat"
+            useLkAir -> "Paczkomat"
             a != null -> "Open-Meteo"
             else -> ""
         }
@@ -337,6 +344,7 @@ class Hub private constructor(private val app: Application) {
         lockerAt = 0L
         detector.sensitivity = settings.clapSensitivity
         refreshOutdoor(true)
+        scope.launch(Dispatchers.IO) { pollEsp() }
     }
 
     // ---------- światło: ustawienie wprost ----------
@@ -411,6 +419,72 @@ class Hub private constructor(private val app: Application) {
         }
     }
 
+    private val _forecast = MutableStateFlow(ForecastState())
+    val forecast: StateFlow<ForecastState> = _forecast.asStateFlow()
+
+    // ---------- źródło danych zewnętrznych ----------
+
+    val outdoorSource = MutableStateFlow(settings.outdoorSource)
+
+    fun setOutdoorSource(s: String) {
+        if (s != "open" && s != "locker") return
+        settings.outdoorSource = s
+        outdoorSource.value = s
+        refreshOutdoor(false)
+    }
+
+    // ---------- czujniki ESP32 i historia ----------
+
+    private val store = IndoorStore(File(app.filesDir, "indoor_history.csv"))
+    val indoorHistory = MutableStateFlow(store.all())
+    val espStatus = MutableStateFlow("")
+
+    private fun pollEsp() {
+        val base = settings.espUrl.trim().trimEnd('/')
+        if (base.isEmpty()) {
+            espStatus.value = ""
+            return
+        }
+        try {
+            val r = Net.request("$base/api/sensors", timeoutMs = 5000)
+            if (r.code != 200) {
+                espStatus.value = "ESP32 odpowiedział kodem ${r.code}"
+                return
+            }
+            val j = JSONObject(r.body)
+            fun d(k: String): Double? = if (j.has(k) && !j.isNull(k)) j.optDouble(k).takeUnless { it.isNaN() } else null
+            val t = d("temp")
+            val hm = d("hum")
+            val p = d("press")
+            val now = System.currentTimeMillis()
+            _indoor.value = IndoorState(t, hm, p, now)
+            espStatus.value = "Połączono z ESP32"
+            if (store.add(IndoorStore.Sample(now, t, hm, p))) indoorHistory.value = store.all()
+        } catch (e: Exception) {
+            espStatus.value = "Brak odpowiedzi ESP32"
+        }
+    }
+
+    init {
+        scope.launch(Dispatchers.IO) {
+            while (true) {
+                if (foreground || serverUp) pollEsp()
+                delay(60_000L)
+            }
+        }
+    }
+
+    fun historyJson(): String {
+        val all = store.all()
+        val step = maxOf(1, all.size / 400)
+        val n = JSONObject.NULL
+        val arr = JSONArray()
+        all.filterIndexed { i, _ -> i % step == 0 }.forEach {
+            arr.put(JSONObject().put("t", it.t).put("tp", it.temp ?: n).put("h", it.hum ?: n).put("p", it.press ?: n))
+        }
+        return arr.toString()
+    }
+
     // ---------- wygląd ----------
 
     val themeMode = MutableStateFlow(settings.themeMode)
@@ -473,10 +547,33 @@ class Hub private constructor(private val app: Application) {
         val l = _light.value
         val s = assistant.value
         val n = JSONObject.NULL
+        val fc = _forecast.value
+        val hoursJ = JSONArray()
+        fc.hours.forEach {
+            hoursJ.put(
+                JSONObject().put("l", it.label).put("t", it.temp ?: n).put("h", it.hum ?: n)
+                    .put("r", it.rainPct ?: n).put("c", it.code ?: n),
+            )
+        }
+        val daysJ = JSONArray()
+        fc.days.forEach {
+            daysJ.put(
+                JSONObject().put("l", it.label).put("min", it.min ?: n).put("max", it.max ?: n)
+                    .put("r", it.rainPct ?: n).put("c", it.code ?: n),
+            )
+        }
         val hist = JSONArray()
         s.history.forEach { (r, t) -> hist.put(JSONObject().put("r", r).put("t", t)) }
         return JSONObject()
             .put("userName", settings.userName)
+            .put("outdoorSource", settings.outdoorSource)
+            .put("espStatus", espStatus.value)
+            .put("briefing", Briefing.make(o.tempC, o.code, _forecast.value))
+            .put(
+                "forecast",
+                JSONObject().put("hours", hoursJ).put("nowIndex", fc.nowIndex)
+                    .put("days", daysJ).put("rainText", fc.rainText),
+            )
             .put("city", settings.city)
             .put(
                 "outdoor",
