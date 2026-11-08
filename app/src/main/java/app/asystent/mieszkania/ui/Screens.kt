@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -433,9 +434,9 @@ fun LightScreen(vm: Hub) {
                 contentAlignment = Alignment.Center,
             ) {
                 if (light.busy) {
-                    CircularProgressIndicator(color = if (on) Palette.Ink else Palette.Lamp)
+                    CircularProgressIndicator(color = if (on) Palette.OnLamp else Palette.Lamp)
                 } else {
-                    PathIcon(Ic.Bulb, if (on) Palette.Ink else Palette.Slate, 72.dp)
+                    PathIcon(Ic.Bulb, if (on) Palette.OnLamp else Palette.Slate, 72.dp)
                 }
             }
             Text(
@@ -512,6 +513,8 @@ fun SettingsScreen(vm: Hub) {
     var sPort by remember { mutableStateOf(s.serverPort) }
     var sPin by remember { mutableStateOf(s.serverPin) }
     var srvOn by remember { mutableStateOf(s.serverEnabled) }
+    val theme by vm.themeMode.collectAsStateWithLifecycle()
+    val kscale by vm.kioskScale.collectAsStateWithLifecycle()
     val srvUrl by vm.serverUrl.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
@@ -567,7 +570,7 @@ fun SettingsScreen(vm: Hub) {
                 Switch(
                     checked = lockerTemp,
                     onCheckedChange = { lockerTemp = it; saved = false },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.Ink, checkedTrackColor = Palette.Lamp),
+                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.OnLamp, checkedTrackColor = Palette.Lamp),
                 )
             }
             Text(
@@ -599,6 +602,41 @@ fun SettingsScreen(vm: Hub) {
         }
 
         Panel {
+            Caption("Wygląd")
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("dark" to "Ciemny", "light" to "Jasny", "auto" to "Auto").forEach { (m, label) ->
+                    val sel = theme == m
+                    Text(
+                        label,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (sel) Palette.OnLamp else Palette.Frost,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (sel) Palette.Lamp else Palette.PanelHigh)
+                            .clickable { vm.setTheme(m) }
+                            .padding(vertical = 12.dp),
+                    )
+                }
+            }
+            Text(
+                "Rozmiar czcionki w kiosku: $kscale%",
+                fontSize = 15.sp,
+                color = Palette.Frost,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            Slider(
+                value = kscale.toFloat(),
+                onValueChange = { vm.setKioskScale(it.toInt()) },
+                valueRange = 60f..150f,
+                colors = SliderDefaults.colors(thumbColor = Palette.Lamp, activeTrackColor = Palette.Lamp),
+            )
+            Text("W kiosku możesz też zmieniać rozmiar przyciskami A− i A+.", fontSize = 12.sp, color = Palette.Slate)
+        }
+
+        Panel {
             Caption("Serwer WWW (podgląd na innych urządzeniach)")
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Uruchom serwer", fontSize = 15.sp, color = Palette.Frost, modifier = Modifier.weight(1f))
@@ -608,7 +646,7 @@ fun SettingsScreen(vm: Hub) {
                         srvOn = want
                         if (want) startServer() else vm.setServer(false)
                     },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.Ink, checkedTrackColor = Palette.Lamp),
+                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.OnLamp, checkedTrackColor = Palette.Lamp),
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -679,7 +717,7 @@ fun SettingsScreen(vm: Hub) {
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Palette.Lamp, contentColor = Palette.Ink),
+            colors = ButtonDefaults.buttonColors(containerColor = Palette.Lamp, contentColor = Palette.OnLamp),
         ) {
             Text("Zapisz ustawienia", fontWeight = FontWeight.SemiBold)
         }

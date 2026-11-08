@@ -181,7 +181,7 @@ fun ClapToggleRow(vm: Hub) {
                     }
                 },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Palette.Ink,
+                    checkedThumbColor = Palette.OnLamp,
                     checkedTrackColor = Palette.Lamp,
                 ),
             )

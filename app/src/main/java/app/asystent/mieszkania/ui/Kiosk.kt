@@ -47,6 +47,7 @@ import java.util.Date
 fun KioskScreen(vm: Hub) {
     val out by vm.outdoor.collectAsStateWithLifecycle()
     val ind by vm.indoor.collectAsStateWithLifecycle()
+    val scale by vm.kioskScale.collectAsStateWithLifecycle()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var slide by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -69,15 +70,18 @@ fun KioskScreen(vm: Hub) {
     val hour = clock.substring(0, 2).toInt()
     val night = hour >= 23 || hour < 6
     val k = if (night) 0.4f else 1f
-    val main = Color.White.copy(alpha = k)
-    val soft = Color.White.copy(alpha = 0.35f * k)
-    val faint = Color.White.copy(alpha = 0.25f * k)
+    val bg = if (Palette.dark) Color.Black else Color.White
+    val fg = if (Palette.dark) Color.White else Color(0xFF111111)
+    val main = fg.copy(alpha = k)
+    val soft = fg.copy(alpha = 0.45f * k)
+    val faint = fg.copy(alpha = 0.32f * k)
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(bg)) {
         val w = maxWidth.value
         val h = maxHeight.value
-        val clockSp = minOf(w * 0.30f, h * 0.44f)
-        val bigSp = minOf(w * 0.26f, h * 0.40f)
+        val sc = scale / 100f
+        val clockSp = minOf(w * 0.30f * sc, h * 0.44f * sc, w * 0.38f)
+        val bigSp = minOf(w * 0.26f * sc, h * 0.40f * sc, w * 0.36f)
 
         Crossfade(targetState = slide, animationSpec = tween(900), label = "kiosk") { s ->
             Column(
@@ -105,7 +109,7 @@ fun KioskScreen(vm: Hub) {
                         Box(Modifier.padding(top = 14.dp).width(40.dp).height(1.dp).background(faint))
                         Text(
                             date,
-                            fontSize = minOf(w * 0.045f, h * 0.07f).sp,
+                            fontSize = (minOf(w * 0.045f, h * 0.07f) * sc).sp,
                             fontWeight = FontWeight.Light,
                             letterSpacing = 4.sp,
                             color = soft,
@@ -113,7 +117,7 @@ fun KioskScreen(vm: Hub) {
                         )
                     }
                     1 -> {
-                        WeatherGlyph(out.code, minOf(w * 0.20f, h * 0.26f).dp)
+                        WeatherGlyph(out.code, (minOf(w * 0.20f, h * 0.26f) * sc).dp)
                         Text(
                             if (out.tempC == null) "—" else "${fmt(out.tempC, 0)}°",
                             fontSize = bigSp.sp,
@@ -123,7 +127,7 @@ fun KioskScreen(vm: Hub) {
                         )
                         Text(
                             vm.settings.city.uppercase(PL),
-                            fontSize = minOf(w * 0.04f, h * 0.06f).sp,
+                            fontSize = (minOf(w * 0.04f, h * 0.06f) * sc).sp,
                             letterSpacing = 6.sp,
                             color = faint,
                             modifier = Modifier.padding(top = 10.dp),
@@ -139,7 +143,7 @@ fun KioskScreen(vm: Hub) {
                         )
                         Text(
                             "${fmt(ind.humidity, 0)} % wilg.",
-                            fontSize = minOf(w * 0.06f, h * 0.09f).sp,
+                            fontSize = (minOf(w * 0.06f, h * 0.09f) * sc).sp,
                             fontWeight = FontWeight.Light,
                             letterSpacing = 2.sp,
                             color = soft,
@@ -147,7 +151,7 @@ fun KioskScreen(vm: Hub) {
                         )
                         Text(
                             "WEWNĄTRZ",
-                            fontSize = minOf(w * 0.04f, h * 0.06f).sp,
+                            fontSize = (minOf(w * 0.04f, h * 0.06f) * sc).sp,
                             letterSpacing = 6.sp,
                             color = faint,
                             modifier = Modifier.padding(top = 10.dp),
@@ -165,7 +169,25 @@ fun KioskScreen(vm: Hub) {
                 Box(
                     Modifier
                         .size(if (i == slide) 6.dp else 4.dp)
-                        .background(Color.White.copy(alpha = if (i == slide) 0.8f * k else 0.2f * k), CircleShape),
+                        .background(fg.copy(alpha = if (i == slide) 0.8f * k else 0.2f * k), CircleShape),
+                )
+            }
+        }
+
+        Row(
+            Modifier.align(Alignment.TopStart).padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf("A−" to -10, "A+" to 10).forEach { (label, d) ->
+                Text(
+                    label,
+                    fontSize = 14.sp,
+                    color = soft,
+                    modifier = Modifier
+                        .background(fg.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+                        .border(1.dp, fg.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                        .clickable { vm.setKioskScale(scale + d) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
         }
@@ -177,8 +199,8 @@ fun KioskScreen(vm: Hub) {
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(18.dp)
-                .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                .background(fg.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+                .border(1.dp, fg.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
                 .clickable { vm.kiosk.value = false }
                 .padding(horizontal = 18.dp, vertical = 8.dp),
         )

@@ -86,4 +86,12 @@ class Settings(context: Context) {
     var serverPin: String
         get() = str("serverPin", "")
         set(v) = putStr("serverPin", v)
+
+    var themeMode: String
+        get() = str("themeMode", "dark")
+        set(v) = putStr("themeMode", v)
+
+    var kioskScale: Int
+        get() = p.getInt("kioskScale", 100)
+        set(v) = p.edit().putInt("kioskScale", v).apply()
 }

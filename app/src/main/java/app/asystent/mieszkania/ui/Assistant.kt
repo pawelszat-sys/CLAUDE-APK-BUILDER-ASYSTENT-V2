@@ -172,7 +172,7 @@ fun AssistantScreen(vm: Hub) {
                 .clickable { micNote = true },
             contentAlignment = Alignment.Center,
         ) {
-            PathIcon(Ic.Mic, Palette.Ink, 34.dp)
+            PathIcon(Ic.Mic, Palette.OnLamp, 34.dp)
         }
         if (micNote) {
             Text("Głos dodamy później (wake word). Na razie pisz lub wybierz podpowiedź.", fontSize = 12.sp, color = Palette.Slate)
@@ -211,7 +211,7 @@ fun AssistantScreen(vm: Hub) {
             )
             Button(
                 onClick = { send() },
-                colors = ButtonDefaults.buttonColors(containerColor = Palette.Lamp, contentColor = Palette.Ink),
+                colors = ButtonDefaults.buttonColors(containerColor = Palette.Lamp, contentColor = Palette.OnLamp),
             ) { Text("Wyślij", fontWeight = FontWeight.SemiBold) }
         }
         TextButton(onClick = { showHist = !showHist }) {

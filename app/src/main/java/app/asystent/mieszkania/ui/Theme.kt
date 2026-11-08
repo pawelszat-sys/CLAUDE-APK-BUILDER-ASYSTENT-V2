@@ -3,6 +3,10 @@ package app.asystent.mieszkania.ui
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
@@ -11,16 +15,22 @@ import androidx.compose.ui.text.font.FontWeight
 import app.asystent.mieszkania.R
 
 object Palette {
-    val Ink = Color(0xFF0A1017)
-    val Panel = Color(0xFF141B23)
-    val PanelHigh = Color(0xFF1B2430)
-    val Line = Color(0xFF2A3441)
-    val Frost = Color(0xFFE8ECF1)
-    val Slate = Color(0xFF8B97A6)
-    val Lamp = Color(0xFFF2B544)
-    val Signal = Color(0xFF4CC38A)
-    val Alert = Color(0xFFF0735F)
-    val Violet = Color(0xFFB450FF)
+    /** Przełączane z zewnątrz (Hub / MainActivity). Odczyt w kompozycji odświeża interfejs. */
+    var dark by mutableStateOf(true)
+
+    val Ink: Color get() = if (dark) Color(0xFF0A1017) else Color(0xFFF3F5F8)
+    val Panel: Color get() = if (dark) Color(0xFF141B23) else Color(0xFFFFFFFF)
+    val PanelHigh: Color get() = if (dark) Color(0xFF1B2430) else Color(0xFFE9EDF2)
+    val Line: Color get() = if (dark) Color(0xFF2A3441) else Color(0xFFD5DBE3)
+    val Frost: Color get() = if (dark) Color(0xFFE8ECF1) else Color(0xFF121A24)
+    val Slate: Color get() = if (dark) Color(0xFF8B97A6) else Color(0xFF5C6877)
+    val Lamp: Color get() = if (dark) Color(0xFFF2B544) else Color(0xFFB7791F)
+    val Signal: Color get() = if (dark) Color(0xFF4CC38A) else Color(0xFF1E8E5A)
+    val Alert: Color get() = if (dark) Color(0xFFF0735F) else Color(0xFFC73E2A)
+    val Violet: Color get() = if (dark) Color(0xFFB450FF) else Color(0xFF8A2BD6)
+
+    /** Tekst i ikony na bursztynowym tle (zawsze ciemne). */
+    val OnLamp = Color(0xFF0A1017)
 }
 
 val Plex = FontFamily(
@@ -54,22 +64,23 @@ private fun plexTypography(): Typography {
 }
 
 @Composable
-fun AsystentTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Palette.Lamp,
-            onPrimary = Palette.Ink,
-            secondary = Palette.Signal,
-            background = Palette.Ink,
-            onBackground = Palette.Frost,
-            surface = Palette.Panel,
-            onSurface = Palette.Frost,
-            surfaceVariant = Palette.PanelHigh,
-            onSurfaceVariant = Palette.Slate,
-            outline = Palette.Line,
-            error = Palette.Alert,
-        ),
-        typography = plexTypography(),
-        content = content,
-    )
+fun AsystentTheme(dark: Boolean = true, content: @Composable () -> Unit) {
+    val scheme = if (dark) {
+        darkColorScheme(
+            primary = Palette.Lamp, onPrimary = Palette.OnLamp, secondary = Palette.Signal,
+            background = Palette.Ink, onBackground = Palette.Frost,
+            surface = Palette.Panel, onSurface = Palette.Frost,
+            surfaceVariant = Palette.PanelHigh, onSurfaceVariant = Palette.Slate,
+            outline = Palette.Line, error = Palette.Alert,
+        )
+    } else {
+        lightColorScheme(
+            primary = Palette.Lamp, onPrimary = Palette.OnLamp, secondary = Palette.Signal,
+            background = Palette.Ink, onBackground = Palette.Frost,
+            surface = Palette.Panel, onSurface = Palette.Frost,
+            surfaceVariant = Palette.PanelHigh, onSurfaceVariant = Palette.Slate,
+            outline = Palette.Line, error = Palette.Alert,
+        )
+    }
+    MaterialTheme(colorScheme = scheme, typography = plexTypography(), content = content)
 }

@@ -119,34 +119,40 @@ svg{display:block;fill:currentColor}
 .fld span:last-child{color:var(--slate);text-align:right;word-break:break-all}
 
 /* KIOSK (układ z wersji Pythona: slajdy, kropki, plazma) */
-.kiosk{position:absolute;inset:0;background:#000;display:none;z-index:20}
+.kiosk{position:absolute;inset:0;background:var(--kbg);display:none;z-index:20}
 .kiosk.on{display:block}
 .slide{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4cqmin}
 .slide.on{display:flex;animation:fade 1s cubic-bezier(.4,0,.2,1)}
 @keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 .k-time{font-size:min(26cqw,44cqh);font-weight:200;letter-spacing:-.02em;line-height:1}
-.k-sec{font-size:min(6cqw,9cqh);font-weight:200;color:rgba(255,255,255,.35);margin-top:1cqmin;letter-spacing:2px}
-.k-div{width:40px;height:1px;background:rgba(255,255,255,.15);margin:3cqmin auto 0}
-.k-date{font-size:min(4cqw,6cqh);font-weight:300;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-top:3cqmin}
-.k-ic{width:min(16cqw,22cqh);height:min(16cqw,22cqh);margin-bottom:2cqmin;color:#fff;filter:drop-shadow(0 0 20px rgba(255,255,255,.2))}
+.k-sec{font-size:min(6cqw,9cqh);font-weight:200;color:rgba(var(--kfg),.35);margin-top:1cqmin;letter-spacing:2px}
+.k-div{width:40px;height:1px;background:rgba(var(--kfg),.15);margin:3cqmin auto 0}
+.k-date{font-size:min(4cqw,6cqh);font-weight:300;letter-spacing:.2em;text-transform:uppercase;color:rgba(var(--kfg),.3);margin-top:3cqmin}
+.k-ic{width:min(16cqw,22cqh);height:min(16cqw,22cqh);margin-bottom:2cqmin;color:rgb(var(--kfg));filter:drop-shadow(0 0 20px rgba(var(--kfg),.2))}
 .k-big{font-size:min(24cqw,38cqh);font-weight:200;letter-spacing:-.02em;line-height:1}
-.k-sub{font-size:min(5cqw,7cqh);font-weight:300;color:rgba(255,255,255,.35);margin-top:2cqmin;letter-spacing:2px}
-.k-lab{font-size:min(3cqw,4.5cqh);color:rgba(255,255,255,.25);letter-spacing:.3em;text-transform:uppercase;margin-top:3cqmin}
+.k-sub{font-size:min(5cqw,7cqh);font-weight:300;color:rgba(var(--kfg),.35);margin-top:2cqmin;letter-spacing:2px}
+.k-lab{font-size:min(3cqw,4.5cqh);color:rgba(var(--kfg),.25);letter-spacing:.3em;text-transform:uppercase;margin-top:3cqmin}
 .dots{position:absolute;left:50%;bottom:4cqmin;transform:translateX(-50%);display:flex;gap:8px}
-.dots i{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .5s}
-.dots i.on{background:rgba(255,255,255,.8);transform:scale(1.4)}
-.kx,.km{position:absolute;top:3cqmin;right:3cqmin;padding:8px 18px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.35);font-size:12px;letter-spacing:1px;z-index:3}
+.dots i{width:4px;height:4px;border-radius:50%;background:rgba(var(--kfg),.2);transition:all .5s}
+.dots i.on{background:rgba(var(--kfg),.8);transform:scale(1.4)}
+.kx,.km{position:absolute;top:3cqmin;right:3cqmin;padding:8px 18px;border-radius:20px;background:rgba(var(--kfg),.06);border:1px solid rgba(var(--kfg),.1);color:rgba(var(--kfg),.35);font-size:12px;letter-spacing:1px;z-index:3}
 .km{top:auto;bottom:3cqmin;padding:8px 14px}
 .plasma{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#05001a 0%,#000005 100%);z-index:5}
 .plasma.on{display:flex}
 .plasma canvas{width:min(80cqw,80cqh);height:min(80cqw,80cqh)}
-.pmode{position:absolute;bottom:4cqmin;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:rgba(255,255,255,.3)}
+.pmode{position:absolute;bottom:4cqmin;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:rgba(var(--kfg),.3)}
 
 /* wersja serwowana z telefonu: pełny ekran przeglądarki */
 body{display:block;padding:0}
 .device,.device[data-o]{width:100vw;height:100dvh;border:0;border-radius:0;
  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .err{color:var(--alert);font-size:13px;margin-top:6px}
+body{background:var(--ink)}
+:root{--kfg:255,255,255;--kbg:#000}
+.slide{zoom:var(--ks,1)}
+.ka{right:auto;left:3cqmin}.ka2{right:auto;left:calc(3cqmin + 64px)}
+:root[data-theme=light]{--ink:#f3f5f8;--panel:#fff;--high:#e9edf2;--line:#d5dbe3;--frost:#121a24;--slate:#5c6877;--lamp:#b7791f;--signal:#1e8e5a;--alert:#c73e2a;--kfg:17,17,17;--kbg:#fff;color-scheme:light}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--ink:#f3f5f8;--panel:#fff;--high:#e9edf2;--line:#d5dbe3;--frost:#121a24;--slate:#5c6877;--lamp:#b7791f;--signal:#1e8e5a;--alert:#c73e2a;--kfg:17,17,17;--kbg:#fff;color-scheme:light}}
 </style>
 </head>
 <body>
@@ -154,7 +160,8 @@ body{display:block;padding:0}
  <div class="app">
   <header class="top">
    <div class="title"><i class="sdot" id="sdot"></i>Asystent Mieszkania</div>
-   <button class="ib" data-go="settings" aria-label="Informacje"><svg width="22" height="22" viewBox="0 0 24 24" data-ic="tune"></svg></button>
+   <div style="display:flex;gap:8px"><button class="ib" id="bTheme" aria-label="Motyw" title="Motyw: auto, jasny, ciemny"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2v20z"/></svg></button>
+   <button class="ib" data-go="settings" aria-label="Informacje"><svg width="22" height="22" viewBox="0 0 24 24" data-ic="tune"></svg></button></div>
   </header>
   <main class="main">
    <section class="view on" id="v-home"></section>
@@ -186,6 +193,7 @@ body{display:block;padding:0}
   <div class="slide"><div id="kic"></div><div class="k-big" id="kw">—</div><div class="k-lab" id="kcity"></div></div>
   <div class="slide"><div class="k-big" id="ki">—</div><div class="k-sub" id="kh"></div><div class="k-lab">Wewnątrz</div></div>
   <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
+  <button class="kx ka" id="kA1" aria-label="Mniejsza czcionka">A−</button><button class="kx ka2" id="kA2" aria-label="Większa czcionka">A+</button>
   <button class="kx" id="kx" aria-label="Zamknij kiosk">✕</button>
  </div>
 </div>
@@ -302,6 +310,13 @@ function kioskOn(on){
  else{try{document.fullscreenElement&&document.exitFullscreen();}catch(e){}}
 }
 $('kx').addEventListener('click',()=>kioskOn(false));
+let tm='auto',ks=1;
+try{tm=localStorage.getItem('theme')||'auto';ks=parseFloat(localStorage.getItem('ks'))||1;}catch(e){}
+function applyTheme(m){if(m==='auto')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',m);}
+applyTheme(tm);
+$('bTheme').addEventListener('click',()=>{tm=tm==='auto'?'light':tm==='light'?'dark':'auto';try{localStorage.setItem('theme',tm)}catch(e){}applyTheme(tm);});
+function setKs(v){ks=Math.min(1.3,Math.max(.6,v));$('kiosk').style.setProperty('--ks',ks);try{localStorage.setItem('ks',ks)}catch(e){}}
+setKs(ks);$('kA1').addEventListener('click',()=>setKs(ks-.1));$('kA2').addEventListener('click',()=>setKs(ks+.1));
 setInterval(()=>{
  const n=new Date(),p=x=>String(x).padStart(2,'0');
  $('kt').textContent=p(n.getHours())+':'+p(n.getMinutes());$('ks').textContent=':'+p(n.getSeconds());

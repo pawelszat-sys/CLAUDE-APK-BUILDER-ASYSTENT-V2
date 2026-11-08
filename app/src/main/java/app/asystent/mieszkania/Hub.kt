@@ -411,6 +411,22 @@ class Hub private constructor(private val app: Application) {
         }
     }
 
+    // ---------- wygląd ----------
+
+    val themeMode = MutableStateFlow(settings.themeMode)
+    val kioskScale = MutableStateFlow(settings.kioskScale)
+
+    fun setTheme(m: String) {
+        settings.themeMode = m
+        themeMode.value = m
+    }
+
+    fun setKioskScale(p: Int) {
+        val v = p.coerceIn(60, 150)
+        settings.kioskScale = v
+        kioskScale.value = v
+    }
+
     // ---------- serwer WWW ----------
 
     val serverUrl = MutableStateFlow("")

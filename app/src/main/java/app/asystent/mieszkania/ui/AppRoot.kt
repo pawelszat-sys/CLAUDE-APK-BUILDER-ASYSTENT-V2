@@ -102,7 +102,7 @@ fun AppRoot(vm: Hub) {
                             NavigationRailItem(
                                 selected = tab == i,
                                 onClick = { tab = i },
-                                icon = { PathIcon(t.icon, if (tab == i) Palette.Ink else Palette.Slate) },
+                                icon = { PathIcon(t.icon, if (tab == i) Palette.OnLamp else Palette.Slate) },
                                 label = { Text(t.label, fontSize = 11.sp) },
                                 colors = NavigationRailItemDefaults.colors(
                                     selectedTextColor = Palette.Frost,
@@ -126,7 +126,7 @@ fun AppRoot(vm: Hub) {
                             NavigationBarItem(
                                 selected = tab == i,
                                 onClick = { tab = i },
-                                icon = { PathIcon(t.icon, if (tab == i) Palette.Ink else Palette.Slate) },
+                                icon = { PathIcon(t.icon, if (tab == i) Palette.OnLamp else Palette.Slate) },
                                 label = { Text(t.label, fontSize = 11.sp) },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedTextColor = Palette.Frost,
