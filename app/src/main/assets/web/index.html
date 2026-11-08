@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Asystent Mieszkania</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0a1017;--panel:#141b23;--high:#1b2430;--line:#2a3441;--frost:#e8ecf1;--slate:#8b97a6;--lamp:#f2b544;--signal:#4cc38a;--alert:#f0735f;--violet:#b450ff;
+--font:'IBM Plex Sans Condensed','Roboto Condensed','Arial Narrow',system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#05080c;color:var(--frost);font:400 16px/1.35 var(--font);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block;fill:currentColor}
+
+/* sterowanie mockupem (tylko na dużym ekranie) */
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.controls button{padding:8px 14px;border-radius:20px;border:1px solid var(--line);color:var(--slate);font-size:14px}
+.controls button.on{background:var(--lamp);color:var(--ink);border-color:var(--lamp);font-weight:600}
+
+/* ramka urządzenia */
+.device{position:relative;container:dev/size;background:var(--ink);border:1px solid var(--line);border-radius:36px;overflow:hidden}
+.device[data-o=p]{width:min(390px,100%);height:min(800px,calc(100dvh - 96px))}
+.device[data-o=l]{width:min(860px,100%);height:min(390px,calc(100dvh - 96px))}
+@media(max-width:560px){
+ body{padding:0;gap:0}.controls{display:none}
+ .device,.device[data-o]{width:100vw;height:100dvh;border:0;border-radius:0;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+}
+
+/* szkielet aplikacji */
+.app{position:relative;width:100%;height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "main" "nav"}
+.top{grid-area:top;display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px}
+.title{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px}
+.sdot{width:9px;height:9px;border-radius:50%;background:var(--signal)}
+.ib{width:40px;height:40px;border-radius:50%;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;color:var(--slate)}
+.main{grid-area:main;overflow:auto;min-height:0}
+.nav{grid-area:nav;display:flex;background:var(--panel);border-top:1px solid var(--line)}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 12px;color:var(--slate);font-size:11px;font-weight:500}
+.nav .pill{width:56px;height:30px;border-radius:15px;display:grid;place-items:center}
+.nav button.on{color:var(--frost)}
+.nav button.on .pill{background:var(--lamp);color:var(--ink)}
+@container dev (min-aspect-ratio:1.25){
+ .app{grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"nav top" "nav main"}
+ .nav{flex-direction:column;justify-content:center;border-top:0;border-right:1px solid var(--line)}
+}
+
+.view{display:none;padding:0 18px 20px}
+.view.on{display:block}
+.stack{display:flex;flex-direction:column;gap:12px}
+.h1{font-size:30px;font-weight:700;padding:6px 0 10px}
+
+/* karty i elementy wspólne */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px}
+.cap{font-size:13px;font-weight:500;color:var(--slate)}
+.val{font-size:34px;font-weight:600;line-height:1.1;margin-top:6px}
+.val small{font-size:16px;color:var(--slate);font-weight:400;margin-left:3px}
+.note{font-size:12px;color:var(--slate);margin-top:4px}
+.chip{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;background:rgba(76,195,138,.16);color:var(--signal)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sw{width:50px;height:30px;border-radius:15px;background:var(--line);position:relative;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:var(--slate);transition:transform .2s,background .2s}
+.sw.on{background:var(--lamp)}.sw.on::after{transform:translateX(20px);background:var(--ink)}
+.btn{width:100%;height:52px;border-radius:16px;border:1px solid var(--line);font-weight:500}
+.btn.pri{background:var(--lamp);color:var(--ink);border-color:var(--lamp);font-weight:600}
+
+/* start */
+.home{display:grid;gap:12px}
+@container dev (min-aspect-ratio:1.25){.home{grid-template-columns:1fr 1fr;align-items:start}}
+.hello{font-size:26px;font-weight:600;padding-top:6px}
+.clock{font-size:clamp(72px,24cqmin,120px);font-weight:700;letter-spacing:-.02em;line-height:1}
+.date{color:var(--slate);margin:2px 0 12px}
+.advice{background:var(--high);border-radius:28px;padding:16px 18px 16px 23px;box-shadow:inset 5px 0 0 var(--lamp);cursor:pointer}
+.advice .cap{color:var(--lamp)}
+.advice p{font-size:20px;font-weight:500;line-height:1.4;margin-top:6px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--signal)}
+.wx{display:flex;align-items:center;gap:16px;margin-top:8px}
+.wx .t{font-size:48px;font-weight:600;line-height:1}
+.wx .r{margin-left:auto;text-align:right;color:var(--slate);font-size:14px}
+
+/* mieszkanie */
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:3px;margin:10px 0}
+.seg button{flex:1;padding:8px;border-radius:11px;color:var(--slate);font-size:14px;font-weight:500}
+.seg button.on{background:var(--high);color:var(--frost)}
+
+/* światło */
+.bulb{width:180px;height:180px;border-radius:50%;margin:20px auto 16px;display:grid;place-items:center;background:var(--high);border:2px solid var(--line);color:var(--slate);transition:all .25s}
+.bulb.on{background:var(--lamp);border-color:var(--lamp);color:var(--ink);box-shadow:0 0 60px rgba(242,181,68,.35)}
+
+/* asystent */
+.ask{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;min-height:100%}
+.orb{width:min(62cqw,36cqh);height:min(62cqw,36cqh);min-width:140px;min-height:140px}
+@container dev (min-aspect-ratio:1.25){.orb{width:min(40cqh,34cqw);height:min(40cqh,34cqw)}}
+.orb canvas{width:100%;height:100%;display:block}
+.state{font-size:13px;font-weight:500;letter-spacing:.04em;color:var(--slate)}
+.say{max-width:34ch;min-height:84px}
+.say .u{color:var(--slate);font-size:15px}
+.say .a{font-size:21px;font-weight:500;line-height:1.35;margin-top:6px}
+.mic{width:76px;height:76px;border-radius:50%;background:var(--lamp);color:var(--ink);display:grid;place-items:center;flex:none}
+.mic.live{background:var(--signal)}
+.chips{display:flex;gap:8px;overflow:auto;max-width:100%;padding:2px 2px 6px}
+.chips button{flex:none;padding:8px 14px;border-radius:20px;border:1px solid var(--line);background:var(--panel);font-size:14px}
+.type{display:flex;gap:8px;width:100%}
+.type input{flex:1;min-width:0;height:44px;border-radius:22px;border:1px solid var(--line);background:var(--panel);color:var(--frost);padding:0 16px;font:inherit}
+.type button{height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);color:var(--slate);font-size:14px}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:72%;background:var(--panel);border-top:1px solid var(--line);border-radius:28px 28px 0 0;padding:18px;overflow:auto;transform:translateY(105%);transition:transform .28s;z-index:15}
+.sheet.on{transform:none}
+.msg{padding:10px 14px;border-radius:16px;margin-top:8px;max-width:88%}
+.msg.u{background:var(--high);margin-left:auto}
+.msg.a{background:rgba(180,80,255,.14)}
+
+/* ustawienia */
+.grp{margin-bottom:12px}
+.fld{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-size:15px}
+.fld:first-of-type{border-top:0}
+.fld span:last-child{color:var(--slate);text-align:right;word-break:break-all}
+
+/* KIOSK (układ z wersji Pythona: slajdy, kropki, plazma) */
+.kiosk{position:absolute;inset:0;background:#000;display:none;z-index:20}
+.kiosk.on{display:block}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4cqmin}
+.slide.on{display:flex;animation:fade 1s cubic-bezier(.4,0,.2,1)}
+@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.k-time{font-size:min(26cqw,44cqh);font-weight:200;letter-spacing:-.02em;line-height:1}
+.k-sec{font-size:min(6cqw,9cqh);font-weight:200;color:rgba(255,255,255,.35);margin-top:1cqmin;letter-spacing:2px}
+.k-div{width:40px;height:1px;background:rgba(255,255,255,.15);margin:3cqmin auto 0}
+.k-date{font-size:min(4cqw,6cqh);font-weight:300;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-top:3cqmin}
+.k-ic{width:min(16cqw,22cqh);height:min(16cqw,22cqh);margin-bottom:2cqmin;color:#fff;filter:drop-shadow(0 0 20px rgba(255,255,255,.2))}
+.k-big{font-size:min(24cqw,38cqh);font-weight:200;letter-spacing:-.02em;line-height:1}
+.k-sub{font-size:min(5cqw,7cqh);font-weight:300;color:rgba(255,255,255,.35);margin-top:2cqmin;letter-spacing:2px}
+.k-lab{font-size:min(3cqw,4.5cqh);color:rgba(255,255,255,.25);letter-spacing:.3em;text-transform:uppercase;margin-top:3cqmin}
+.dots{position:absolute;left:50%;bottom:4cqmin;transform:translateX(-50%);display:flex;gap:8px}
+.dots i{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .5s}
+.dots i.on{background:rgba(255,255,255,.8);transform:scale(1.4)}
+.kx,.km{position:absolute;top:3cqmin;right:3cqmin;padding:8px 18px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.35);font-size:12px;letter-spacing:1px;z-index:3}
+.km{top:auto;bottom:3cqmin;padding:8px 14px}
+.plasma{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#05001a 0%,#000005 100%);z-index:5}
+.plasma.on{display:flex}
+.plasma canvas{width:min(80cqw,80cqh);height:min(80cqw,80cqh)}
+.pmode{position:absolute;bottom:4cqmin;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:rgba(255,255,255,.3)}
+
+/* wersja serwowana z telefonu: pełny ekran przeglądarki */
+body{display:block;padding:0}
+.device,.device[data-o]{width:100vw;height:100dvh;border:0;border-radius:0;
+ padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.err{color:var(--alert);font-size:13px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="device" id="dev" data-o="p">
+ <div class="app">
+  <header class="top">
+   <div class="title"><i class="sdot" id="sdot"></i>Asystent Mieszkania</div>
+   <button class="ib" data-go="settings" aria-label="Informacje"><svg width="22" height="22" viewBox="0 0 24 24" data-ic="tune"></svg></button>
+  </header>
+  <main class="main">
+   <section class="view on" id="v-home"></section>
+   <section class="view" id="v-weather"></section>
+   <section class="view" id="v-indoor"></section>
+   <section class="view" id="v-light"></section>
+   <section class="view" id="v-ask"><div class="ask">
+    <div class="orb"><canvas id="orbA"></canvas></div>
+    <div class="state" id="astate">czuwam</div>
+    <div class="say" id="say"></div>
+    <div class="chips" id="chips"><button>Jaka jest temperatura?</button><button>Włącz światło</button><button>Jaka będzie pogoda jutro?</button><button>Opowiedz ciekawostkę</button></div>
+    <div class="type"><input id="txt" placeholder="Napisz wiadomość…" aria-label="Wiadomość"><button id="bSend">Wyślij</button><button id="bHist">Historia</button></div>
+   </div></section>
+   <section class="view" id="v-settings"><div class="h1">Informacje</div>
+    <div class="card"><p>Ustawienia (klucze, adresy, czułość klaśnięć) zmienia się w aplikacji na telefonie.</p><p class="note" style="margin-top:8px">Ta strona pokazuje dane na żywo i pozwala sterować światłem oraz pytać asystenta.</p></div>
+   </section>
+  </main>
+  <nav class="nav" id="nav">
+   <button class="on" data-go="home"><span class="pill"><svg width="24" height="24" viewBox="0 0 24 24" data-ic="home"></svg></span>Start</button>
+   <button data-go="weather"><span class="pill"><svg width="24" height="24" viewBox="0 0 24 24" data-ic="cloud"></svg></span>Pogoda</button>
+   <button data-go="indoor"><span class="pill"><svg width="24" height="24" viewBox="0 0 24 24" data-ic="grid"></svg></span>Mieszkanie</button>
+   <button data-go="light"><span class="pill"><svg width="24" height="24" viewBox="0 0 24 24" data-ic="bulb"></svg></span>Światło</button>
+   <button data-go="ask"><span class="pill"><svg width="24" height="24" viewBox="0 0 24 24" data-ic="mic"></svg></span>Asystent</button>
+  </nav>
+  <div class="sheet" id="sheet"><div class="row"><div class="cap">Historia rozmowy</div><button id="bClose" style="color:var(--lamp)">Zamknij</button></div><div id="hist"></div></div>
+ </div>
+ <div class="kiosk" id="kiosk">
+  <div class="slide on"><div class="k-time" id="kt">00:00</div><div class="k-sec" id="ks">:00</div><div class="k-div"></div><div class="k-date" id="kd"></div></div>
+  <div class="slide"><div id="kic"></div><div class="k-big" id="kw">—</div><div class="k-lab" id="kcity"></div></div>
+  <div class="slide"><div class="k-big" id="ki">—</div><div class="k-sub" id="kh"></div><div class="k-lab">Wewnątrz</div></div>
+  <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
+  <button class="kx" id="kx" aria-label="Zamknij kiosk">✕</button>
+ </div>
+</div>
+<script>
+const IC={
+ home:"M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+ cloud:"M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z",
+ grid:"M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
+ bulb:"M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z",
+ tune:"M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
+ mic:"M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z",
+ sun:"M12 7a5 5 0 100 10 5 5 0 000-10zM11 1h2v3h-2zM11 20h2v3h-2zM1 11h3v2H1zM20 11h3v2h-3zM4.2 5.6l1.4-1.4 2.1 2.1-1.4 1.4zM16.3 17.7l1.4-1.4 2.1 2.1-1.4 1.4zM4.2 18.4l2.1-2.1 1.4 1.4-2.1 2.1zM16.3 6.3l2.1-2.1 1.4 1.4-2.1 2.1z"
+};
+const $=id=>document.getElementById(id);
+const ico=(n,s,st)=>'<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" style="'+(st||'')+'"><path d="'+IC[n]+'"/></svg>';
+document.querySelectorAll('[data-ic]').forEach(s=>{s.innerHTML='<path d="'+IC[s.dataset.ic]+'"/>'});
+const f=(v,d=1)=>v==null?'—':Number(v).toFixed(d).replace('.',',');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hm=t=>t?new Date(t).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}):'';
+let S=null,pin='',asked=false;
+try{pin=localStorage.getItem('pin')||''}catch(e){}
+
+async function api(path,body){
+ try{
+  const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-Pin':pin,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  if(r.status===401){
+   if(!asked){asked=true;pin=prompt('Podaj PIN')||'';try{localStorage.setItem('pin',pin)}catch(e){}asked=false;}
+   return null;
+  }
+  $('sdot').style.background='var(--signal)';
+  return await r.json();
+ }catch(e){$('sdot').style.background='var(--alert)';return null;}
+}
+async function pull(){const j=await api('/api/state');if(j){S=j;render();}}
+async function act(path,body){const j=await api(path,body||{});if(j){S=j;render();}}
+setInterval(pull,2000);pull();
+
+function wxGlyph(o,s){return (o.code===0||o.code===1)?ico('sun',s,'color:var(--lamp)'):ico('cloud',s,'color:var(--slate)');}
+function airTone(w){return w<50?'#4cc38a':w<100?'#f2b544':'#f0735f';}
+function wxCard(o){
+ return '<div class="card"><div class="cap">Pogoda na zewnątrz</div><div class="wx">'+wxGlyph(o,56)+
+ '<div><div class="t">'+(o.tempC==null?'—':f(o.tempC)+'°')+'</div><div class="note" style="font-size:15px">'+esc(o.weatherText||'Brak opisu')+'</div></div>'+
+ '<div class="r">Wiatr: '+f(o.windKmh)+' km/h<br>Opady: '+(o.rainPct==null?'—':o.rainPct+'%')+'</div></div></div>';
+}
+function airCard(o,detail){
+ if(o.pm25==null&&o.pm10==null)return '<div class="card"><div class="cap">Jakość powietrza</div><p style="margin-top:8px;color:var(--slate)">Brak danych o pyłach.</p></div>';
+ const w=Math.max(o.pm25Pct||0,o.pm10Pct||0),c=airTone(w);
+ return '<div class="card"><div class="cap">Jakość powietrza</div><div class="row" style="margin-top:6px"><div class="val" style="margin:0">'+f(o.pm25)+'<small>µg/m³ PM2,5</small></div>'+
+ (o.airLabel?'<span class="chip" style="color:'+c+';background:'+c+'29">'+esc(o.airLabel)+'</span>':'')+'</div>'+
+ '<div class="bar"><i style="width:'+Math.min(100,Math.max(3,w))+'%;background:'+c+'"></i></div>'+
+ '<div class="note">Pasek pokazuje, jaką część normy zajmują pyły.</div>'+
+ '<div class="note">PM2,5: '+f(o.pm25)+' ('+f(o.pm25Pct,0)+'% normy), PM10: '+f(o.pm10)+' ('+f(o.pm10Pct,0)+'% normy)</div>'+
+ (o.airSource?'<div class="note">Źródło: '+esc(o.airSource)+'</div>':'')+'</div>';
+}
+function render(){
+ const o=S.outdoor,i=S.indoor,a=S.advice,l=S.light,as=S.assistant;
+ const inNote=i.updated?'Odczyt z '+hm(i.updated):'Czeka na ESP32';
+ const advBody=a.loading?'Gemini układa poradę…':a.text?esc(a.text):'Klaśnij raz albo stuknij tutaj, żeby dostać poradę.';
+ const now=new Date(),p=x=>String(x).padStart(2,'0'),h=now.getHours();
+ const hello=(h>=5&&h<12?'Dzień dobry':h<18?'Miłego popołudnia':h<22?'Dobry wieczór':'Dobrej nocy')+(S.userName?', '+esc(S.userName):'')+'!';
+ const date=now.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
+ if(!window._typing||document.activeElement.id!=='txt'){}
+ $('v-home').innerHTML='<div class="home"><div class="stack"><div><div class="hello">'+hello+'</div><div class="clock">'+p(h)+':'+p(now.getMinutes())+'</div><div class="date">'+date+'</div></div>'+
+  '<div class="advice" id="advice"><div class="cap">Porada dnia</div><p>'+advBody+'</p>'+(a.error?'<div class="err">'+esc(a.error)+'</div>':'')+(a.text&&a.time?'<div class="note">Gemini, '+hm(a.time)+'. Stuknij, żeby odświeżyć.</div>':'')+'</div></div>'+
+  '<div class="stack"><div class="tiles">'+
+  '<div class="card"><div class="cap">Na zewnątrz</div><div class="val">'+f(o.tempC)+'<small>°C</small></div><div class="note">'+esc(o.tempSource||'brak danych')+'</div></div>'+
+  '<div class="card"><div class="cap">W domu</div><div class="val">'+f(i.tempC)+'<small>°C</small></div><div class="note">'+inNote+'</div></div>'+
+  '<div class="card"><div class="cap">Wilgotność</div><div class="val">'+f(i.humidity,0)+'<small>%</small></div><div class="note">'+inNote+'</div></div>'+
+  '<div class="card"><div class="cap">Ciśnienie</div><div class="val">'+f(i.pressure,0)+'<small>hPa</small></div><div class="note">'+inNote+'</div></div></div>'+
+  wxCard(o)+airCard(o)+'<button class="btn" id="bK2">Tryb kiosku (pełny ekran)</button></div></div>';
+ $('v-weather').innerHTML='<div class="h1">Pogoda</div><div class="stack">'+wxCard(o)+airCard(o,true)+
+  '<div class="card"><div class="cap">Źródła i odświeżanie</div><p style="margin-top:6px">Temperatura: '+esc(o.tempSource||'brak')+'. Pyły: '+esc(o.airSource||'brak')+'. Wiatr i opady: Open-Meteo.</p>'+
+  (o.updated?'<div class="note">Ostatnie sprawdzenie: '+hm(o.updated)+'</div>':'')+(o.error?'<div class="err">'+esc(o.error)+'</div>':'')+
+  '<button class="btn" id="bRef" style="margin-top:10px;height:44px">Odśwież teraz</button></div></div>';
+ $('v-indoor').innerHTML='<div class="h1">Mieszkanie</div><div class="stack"><div class="tiles" style="grid-template-columns:repeat(3,1fr)">'+
+  '<div class="card"><div class="cap">Temperatura</div><div class="val">'+f(i.tempC)+'<small>°C</small></div></div>'+
+  '<div class="card"><div class="cap">Wilgotność</div><div class="val">'+f(i.humidity,0)+'<small>%</small></div></div>'+
+  '<div class="card"><div class="cap">Ciśnienie</div><div class="val">'+f(i.pressure,0)+'<small>hPa</small></div></div></div>'+
+  '<div class="card"><div class="cap">Ostatnie 24 godziny</div><p style="margin-top:8px;color:var(--slate)">Brak danych z czujników. Wykres pojawi się, gdy podłączymy ESP32.</p></div></div>';
+ const on=l.on===true;
+ $('v-light').innerHTML='<div class="h1">Światło</div><div style="text-align:center"><button class="bulb'+(on?' on':'')+'" id="bulb" aria-label="Przełącz światło">'+ico('bulb',72)+'</button>'+
+  '<div style="font-size:24px;font-weight:600">'+(l.on==null?'Stan nieznany':on?'Włączone':'Wyłączone')+'</div>'+
+  '<div class="note" style="font-size:14px;margin-top:4px">Stuknij kółko, żeby przełączyć.</div>'+(l.error?'<div class="err">'+esc(l.error)+'</div>':'')+'</div>';
+ // asystent: tylko dynamiczne elementy
+ oA.set(as.mode);$('astate').textContent=({listen:'słucham',think:'myślę',speak:'mówię'})[as.mode]||'czuwam';
+ $('say').innerHTML=(!as.q&&!as.a)?'<div class="a" style="color:var(--slate);font-weight:400;font-size:17px">Wybierz podpowiedź albo napisz wiadomość.</div>':
+  (as.q?'<div class="u">'+esc(as.q)+'</div>':'')+(as.a?'<div class="a">'+esc(as.a)+'</div>':'');
+ $('hist').innerHTML=as.history.length?as.history.map(x=>'<div class="msg '+x.r+'">'+esc(x.t)+'</div>').join(''):'<div class="note" style="margin-top:12px">Na razie pusto.</div>';
+ // kiosk
+ $('kw').textContent=o.tempC==null?'—':f(o.tempC,0)+'°';$('kic').innerHTML=wxGlyph(o,96).replace('<svg','<svg class="k-ic"');
+ $('kcity').textContent=(S.city||'').toUpperCase();$('ki').textContent=i.tempC==null?'—':f(i.tempC)+'°';$('kh').textContent=f(i.humidity,0)+' % wilg.';
+ bind();
+}
+function bind(){
+ const g=id=>$(id);
+ if(g('advice'))g('advice').onclick=()=>act('/api/advice/refresh');
+ if(g('bK2'))g('bK2').onclick=()=>kioskOn(true);
+ if(g('bRef'))g('bRef').onclick=()=>act('/api/refresh');
+ if(g('bulb'))g('bulb').onclick=()=>act('/api/light/toggle');
+}
+function go(v){
+ document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
+ document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===v));
+ $('sheet').classList.remove('on');document.querySelector('.main').scrollTop=0;
+}
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+
+/* zegar kiosku */
+let slide=0,slideT=null;
+function showSlide(n){slide=n;document.querySelectorAll('#kiosk .slide').forEach((s,k)=>s.classList.toggle('on',k===n));document.querySelectorAll('#dots i').forEach((d,k)=>d.classList.toggle('on',k===n));}
+function kioskOn(on){
+ $('kiosk').classList.toggle('on',on);clearInterval(slideT);
+ if(on){showSlide(0);slideT=setInterval(()=>showSlide((slide+1)%3),8000);try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();}catch(e){}}
+ else{try{document.fullscreenElement&&document.exitFullscreen();}catch(e){}}
+}
+$('kx').addEventListener('click',()=>kioskOn(false));
+setInterval(()=>{
+ const n=new Date(),p=x=>String(x).padStart(2,'0');
+ $('kt').textContent=p(n.getHours())+':'+p(n.getMinutes());$('ks').textContent=':'+p(n.getSeconds());
+ $('kd').textContent=n.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
+},1000);
+
+/* asystent */
+function ask(q){if(q&&q.trim())act('/api/ask',{q:q.trim()});}
+$('chips').addEventListener('click',e=>{if(e.target.tagName==='BUTTON')ask(e.target.textContent);});
+$('bSend').addEventListener('click',()=>{const v=$('txt').value;$('txt').value='';ask(v);});
+$('txt').addEventListener('keydown',e=>{if(e.key==='Enter')$('bSend').click();});
+$('bHist').addEventListener('click',()=>$('sheet').classList.add('on'));
+$('bClose').addEventListener('click',()=>$('sheet').classList.remove('on'));
+
+const MODES={idle:{c:'139,151,166',a:.05},listen:{c:'76,195,138',a:.2},think:{c:'242,181,68',a:.1},speak:{c:'180,80,255',a:.26}};
+function orb(cv){
+ const x=cv.getContext('2d');let m='idle',amp=.05,t=0;
+ function fit(){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);}
+ function frame(){
+  requestAnimationFrame(frame);if(!cv.offsetParent)return;
+  const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;if(cv.width!==Math.round(r.width*d))fit();
+  t+=.016;const W=cv.width,H=cv.height,R=Math.min(W,H)/2,M=MODES[m]||MODES.idle;amp+=(M.a-amp)*.06;
+  const lvl=(m==='listen'||m==='speak')?.5+.5*Math.sin(t*7)*Math.sin(t*2.3):0;
+  x.clearRect(0,0,W,H);const g=x.createRadialGradient(W/2,H/2,0,W/2,H/2,R*.7);
+  g.addColorStop(0,'rgba('+M.c+',.22)');g.addColorStop(1,'rgba('+M.c+',0)');x.fillStyle=g;x.fillRect(0,0,W,H);
+  for(let k=0;k<5;k++){x.beginPath();
+   for(let i=0;i<=120;i++){const a=i/120*Math.PI*2,w=Math.sin(a*(3+k)+t*(1+k*.4))*amp*(1+lvl)+Math.sin(a*2-t*.8+k)*amp*.5,rr=R*(.42+k*.1)*(1+w),px=W/2+Math.cos(a)*rr,py=H/2+Math.sin(a)*rr;i?x.lineTo(px,py):x.moveTo(px,py);}
+   x.closePath();x.strokeStyle='rgba('+M.c+','+(.6-k*.1)+')';x.lineWidth=Math.max(1.5,R*.012);x.stroke();}
+ }
+ fit();frame();return{set(v){m=v;}};
+}
+const oA=orb($('orbA'));
+</script>
+</body>
+</html>
