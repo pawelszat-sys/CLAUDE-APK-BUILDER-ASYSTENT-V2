@@ -22,6 +22,10 @@ import app.asystent.mieszkania.data.IndoorState
 import app.asystent.mieszkania.data.LightState
 import app.asystent.mieszkania.data.Locker
 import app.asystent.mieszkania.data.Net
+import app.asystent.mieszkania.data.Note
+import app.asystent.mieszkania.data.Sev
+import app.asystent.mieszkania.data.Situation
+import app.asystent.mieszkania.ui.Haptics
 import app.asystent.mieszkania.data.LockerSource
 import app.asystent.mieszkania.data.OpenMeteo
 import app.asystent.mieszkania.data.OutdoorState
@@ -35,7 +39,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -96,7 +103,6 @@ class Hub private constructor(private val app: Application) {
             while (true) {
                 if (foreground || serverUp) {
                     refreshOutdoor(false)
-                    refreshAdvice(false)
                 }
                 delay(5 * 60_000L)
             }
@@ -109,7 +115,6 @@ class Hub private constructor(private val app: Application) {
         foreground = true
         if (settings.clapsEnabled && micGranted) startDetector()
         refreshOutdoor(false)
-        refreshAdvice(false)
     }
 
     fun onBackground() {
@@ -146,7 +151,11 @@ class Hub private constructor(private val app: Application) {
         val time = SimpleDateFormat("HH:mm:ss", pl).format(Date())
         clapInfo.value = "Ostatnie wykrycie: $n× o $time"
         when (n) {
-            1 -> refreshAdvice(true)
+            1 -> Haptics.pulse(app, 0, 40)
+            2 -> Haptics.pulse(app, 0, 40, 80, 40)
+        }
+        when (n) {
+            1 -> refreshOutdoor(true)
             2 -> toggleLight()
         }
     }
@@ -315,8 +324,10 @@ class Hub private constructor(private val app: Application) {
             try {
                 val target = c.toggle(last)
                 _light.value = LightState(on = target)
+                Haptics.pulse(app, 0, 50)
             } catch (e: Exception) {
                 _light.update { it.copy(busy = false, error = e.message ?: "Błąd połączenia z Tuya.") }
+                Haptics.pulse(app, 0, 60, 80, 60)
             }
         }
     }
@@ -331,6 +342,7 @@ class Hub private constructor(private val app: Application) {
                 _light.value = LightState(on = s, error = if (s == null) "Nie udało się odczytać stanu światła." else null)
             } catch (e: Exception) {
                 _light.update { it.copy(busy = false, error = e.message ?: "Błąd połączenia z Tuya.") }
+                Haptics.pulse(app, 0, 60, 80, 60)
             }
         }
     }
@@ -361,8 +373,10 @@ class Hub private constructor(private val app: Application) {
             try {
                 c.setState(on)
                 _light.value = LightState(on = on)
+                Haptics.pulse(app, 0, 50)
             } catch (e: Exception) {
                 _light.update { it.copy(busy = false, error = e.message ?: "Błąd połączenia z Tuya.") }
+                Haptics.pulse(app, 0, 60, 80, 60)
             }
         }
     }
@@ -374,15 +388,46 @@ class Hub private constructor(private val app: Application) {
     private fun buildAskPrompt(q: String): String {
         val o = _outdoor.value
         val i = _indoor.value
+        val fc = _forecast.value
         val ctx = buildString {
-            o.tempC?.let { append("Na zewnątrz jest ${fmt(it)} stopni. ") }
-            if (o.code != null) append("Pogoda: ${weatherText(o.code)}. ")
-            if (o.airLabel.isNotBlank()) append("Jakość powietrza: ${o.airLabel}. ")
-            i.tempC?.let { append("W domu jest ${fmt(it)} stopni. ") }
-            i.humidity?.let { append("Wilgotność w domu: ${fmt(it, 0)}%. ") }
+            append("Teraz: ${SimpleDateFormat("EEEE, d MMMM yyyy, 'godz.' HH:mm", pl).format(Date())}. ")
+            append("Miejsce: ${settings.city.ifBlank { "Polska" }}, Polska.\n")
+            val now1 = listOfNotNull(
+                o.tempC?.let { "${fmt(it)}°C" },
+                o.code?.let { weatherText(it).lowercase(pl) },
+                o.windKmh?.let { "wiatr ${fmt(it, 0)} km/h" },
+                o.rainPct?.let { "szansa opadów $it%" },
+            )
+            if (now1.isNotEmpty()) append("Pogoda teraz: ${now1.joinToString(", ")}.\n")
+            if (o.pm25 != null || o.pm10 != null) {
+                append("Jakość powietrza: ${o.airLabel.ifEmpty { "brak oceny" }} (PM2,5 ${fmt(o.pm25)} µg/m³, PM10 ${fmt(o.pm10)} µg/m³).\n")
+            }
+            if (fc.hours.isNotEmpty()) {
+                val hrs = fc.hours.drop(fc.nowIndex).take(25).filterIndexed { k, _ -> k % 3 == 0 }
+                    .joinToString("; ") { "${it.label} ${fmt(it.temp, 0)}°C, opady ${it.rainPct ?: 0}%" }
+                append("Prognoza godzinowa na najbliższe 24 h: $hrs.\n")
+            }
+            if (fc.days.isNotEmpty()) {
+                val ds = fc.days.joinToString("; ") { "${it.label} ${fmt(it.min, 0)} do ${fmt(it.max, 0)}°C, opady ${it.rainPct ?: 0}%" }
+                append("Prognoza na kolejne dni: $ds.\n")
+            }
+            if (i.tempC != null || i.humidity != null) {
+                append("Czujniki w domu: temperatura ${fmt(i.tempC)}°C, wilgotność ${fmt(i.humidity, 0)}%, ciśnienie ${fmt(i.pressure, 0)} hPa.\n")
+            } else {
+                append("Brak danych z czujników domowych.\n")
+            }
+            val light = when (_light.value.on) {
+                true -> "włączone"
+                false -> "wyłączone"
+                null -> "stan nieznany"
+            }
+            append("Światło: $light.\n")
         }
-        return "Jesteś asystentem domowym. $ctx" +
-            "Odpowiadaj po polsku, zwięźle (najwyżej dwa zdania), bez emotikon. Pytanie: $q"
+        val hist = assistant.value.history.takeLast(6)
+            .joinToString("\n") { (r, t) -> (if (r == "u") "Użytkownik: " else "Asystent: ") + t }
+        return "Dane z domu i prognoza:\n$ctx" +
+            (if (hist.isNotEmpty()) "\nDotychczasowa rozmowa:\n$hist\n" else "") +
+            "\nPytanie użytkownika: $q"
     }
 
     private fun finishAsk(q: String, a: String) {
@@ -413,7 +458,7 @@ class Hub private constructor(private val app: Application) {
         val prompt = buildAskPrompt(text)
         scope.launch(Dispatchers.IO) {
             try {
-                finishAsk(text, Gemini.advice(key, settings.geminiModel.trim(), prompt))
+                finishAsk(text, Gemini.ask(key, settings.geminiModel.trim(), ASSISTANT_SYSTEM, prompt))
             } catch (e: Exception) {
                 assistant.update { it.copy(a = e.message ?: "Błąd asystenta.", mode = "idle", busy = false) }
             }
@@ -484,6 +529,40 @@ class Hub private constructor(private val app: Application) {
             arr.put(JSONObject().put("t", it.t).put("tp", it.temp ?: n).put("h", it.hum ?: n).put("p", it.press ?: n))
         }
         return arr.toString()
+    }
+
+    // ---------- porada dnia: priorytetowe uwagi z bieżących danych ----------
+
+    val notes: StateFlow<List<Note>> = combine(_outdoor, _indoor, _forecast, indoorHistory, espStatus) { o, i, f, hs, st ->
+        Situation.build(o, i, f, hs, settings.espUrl.isNotBlank(), st.startsWith("Połączono"), System.currentTimeMillis())
+    }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    init {
+        // krótki alarm wibracją, gdy pojawi się nowa sytuacja krytyczna
+        scope.launch {
+            var seen: String? = null
+            notes.collect { list ->
+                val key = list.filter { it.sev == Sev.CRIT }.joinToString("|") { it.text }
+                if (seen != null && key.isNotEmpty() && key != seen && foreground) {
+                    Haptics.pulse(app, 0, 90, 70, 90)
+                }
+                seen = key
+            }
+        }
+    }
+
+    // ---------- wibracje ----------
+
+    val hapticsOn = MutableStateFlow(settings.haptics)
+
+    init {
+        Haptics.enabled = settings.haptics
+    }
+
+    fun setHaptics(b: Boolean) {
+        settings.haptics = b
+        hapticsOn.value = b
+        Haptics.enabled = b
     }
 
     // ---------- wygląd ----------
@@ -563,11 +642,15 @@ class Hub private constructor(private val app: Application) {
                     .put("r", it.rainPct ?: n).put("c", it.code ?: n),
             )
         }
+        val notesJ = JSONArray()
+        notes.value.forEach { notesJ.put(JSONObject().put("s", it.sev.ordinal).put("t", it.text)) }
         val hist = JSONArray()
         s.history.forEach { (r, t) -> hist.put(JSONObject().put("r", r).put("t", t)) }
         return JSONObject()
             .put("userName", settings.userName)
             .put("outdoorSource", settings.outdoorSource)
+            .put("notes", notesJ)
+            .put("summary", Situation.summary(o, i))
             .put("espStatus", espStatus.value)
             .put("briefing", Briefing.make(o.tempC, o.code, _forecast.value))
             .put(
@@ -607,3 +690,12 @@ class Hub private constructor(private val app: Application) {
             .toString()
     }
 }
+
+private const val ASSISTANT_SYSTEM =
+    "Jesteś osobistym asystentem domowym użytkownika (Polska). W wiadomości dostajesz dane z jego domu, " +
+        "aktualną pogodę i prognozę, a dodatkowo masz dostęp do wyszukiwarki Google. " +
+        "Zawsze odpowiadaj konkretnie na zadane pytanie: o pogodę (w tym jutro i kolejne dni), o wydarzenia na świecie " +
+        "i w Polsce, wiadomości, fakty i porady. Do bieżących wydarzeń korzystaj z wyszukiwarki. " +
+        "Nie mów, że nie masz dostępu do danych: użyj tego, co jest w wiadomości lub w wyszukiwarce. " +
+        "Jeśli czegoś naprawdę nie da się ustalić, powiedz to jednym zdaniem i podaj najlepsze przybliżenie. " +
+        "Odpowiadaj po polsku, zwięźle (zwykle 1 do 4 zdań), bez emotikon, bez wstępów i bez formatowania markdown."

@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -87,6 +88,7 @@ private fun TopBar(onSettings: () -> Unit) {
 fun AppRoot(vm: Hub) {
     val kiosk by vm.kiosk.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val view = LocalView.current
 
     if (kiosk) {
         KioskScreen(vm)
@@ -112,7 +114,10 @@ fun AppRoot(vm: Hub) {
                         tabs.forEachIndexed { i, t ->
                             NavigationRailItem(
                                 selected = tab == i,
-                                onClick = { tab = i },
+                                onClick = {
+                                    Haptics.tick(view)
+                                    tab = i
+                                },
                                 icon = { PathIcon(t.icon, if (tab == i) Palette.OnLamp else Palette.Slate) },
                                 label = { Text(t.label, fontSize = 11.sp) },
                                 colors = NavigationRailItemDefaults.colors(
@@ -128,13 +133,19 @@ fun AppRoot(vm: Hub) {
                             WindowInsets.systemBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom),
                         ),
                     ) {
-                        TopBar { tab = SETTINGS }
+                        TopBar {
+                            Haptics.tick(view)
+                            tab = SETTINGS
+                        }
                         Box(Modifier.weight(1f)) { screen() }
                     }
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
-                    TopBar { tab = SETTINGS }
+                    TopBar {
+                            Haptics.tick(view)
+                            tab = SETTINGS
+                        }
                     Box(Modifier.weight(1f)) { screen() }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line))
                     Row(
@@ -148,7 +159,10 @@ fun AppRoot(vm: Hub) {
                             Column(
                                 Modifier
                                     .weight(1f)
-                                    .clickable { tab = i }
+                                    .clickable {
+                                        Haptics.tick(view)
+                                        tab = i
+                                    }
                                     .padding(top = 8.dp, bottom = 8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {

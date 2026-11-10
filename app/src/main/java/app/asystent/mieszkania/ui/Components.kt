@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -153,6 +154,7 @@ fun ClapToggleRow(vm: Hub) {
     val on by vm.clapsOn.collectAsStateWithLifecycle()
     val info by vm.clapInfo.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
+    val view = LocalView.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) vm.startClaps()
     }
@@ -171,6 +173,7 @@ fun ClapToggleRow(vm: Hub) {
             Switch(
                 checked = on,
                 onCheckedChange = { want ->
+                    Haptics.tick(view)
                     if (want) {
                         val granted = ContextCompat.checkSelfPermission(
                             ctx, Manifest.permission.RECORD_AUDIO,

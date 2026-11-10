@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +50,7 @@ fun KioskScreen(vm: Hub) {
     val out by vm.outdoor.collectAsStateWithLifecycle()
     val ind by vm.indoor.collectAsStateWithLifecycle()
     val scale by vm.kioskScale.collectAsStateWithLifecycle()
+    val view = LocalView.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var slide by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -84,7 +86,10 @@ fun KioskScreen(vm: Hub) {
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-            ) { vm.kiosk.value = false },
+            ) {
+                Haptics.tick(view)
+                vm.kiosk.value = false
+            },
     ) {
         val w = maxWidth.value
         val h = maxHeight.value

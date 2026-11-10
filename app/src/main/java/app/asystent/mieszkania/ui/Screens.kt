@@ -62,11 +62,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.asystent.mieszkania.Hub
 import app.asystent.mieszkania.data.AdviceState
 import app.asystent.mieszkania.data.Briefing
+import app.asystent.mieszkania.data.Note
+import app.asystent.mieszkania.data.Sev
+import app.asystent.mieszkania.data.Situation
 import app.asystent.mieszkania.data.ForecastState
 import app.asystent.mieszkania.data.IndoorState
 import app.asystent.mieszkania.data.OutdoorState
@@ -100,6 +104,9 @@ fun StartScreen(vm: Hub) {
     val hasKey by vm.hasGeminiKey.collectAsStateWithLifecycle()
     val fc by vm.forecast.collectAsStateWithLifecycle()
     val name = vm.settings.userName.trim()
+    val notes by vm.notes.collectAsStateWithLifecycle()
+    val sumText = remember(out, ind) { Situation.summary(out, ind) }
+    val view = LocalView.current
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -136,7 +143,10 @@ fun StartScreen(vm: Hub) {
             )
             Text(date, fontSize = 16.sp, color = Palette.Slate)
         }
-        AdviceCard(adv, hasKey) { vm.refreshAdvice(true) }
+        SituationCard(notes, sumText) {
+            Haptics.tick(view)
+            vm.refreshOutdoor(true)
+        }
     }
 
     val rest: @Composable ColumnScope.() -> Unit = {
@@ -148,11 +158,14 @@ fun StartScreen(vm: Hub) {
             Tile("Wilgotność", fmt(ind.humidity, 0), "%", comfortH(ind), Modifier.weight(1f).fillMaxHeight())
             Tile("Ciśnienie", fmt(ind.pressure, 0), "hPa", comfortP(ind), Modifier.weight(1f).fillMaxHeight())
         }
-        WeatherPanel(out, fc)
+        WeatherPanel(out)
         AirPanel(out)
         ClapToggleRow(vm)
         OutlinedButton(
-            onClick = { vm.kiosk.value = true },
+            onClick = {
+                Haptics.tick(view)
+                vm.kiosk.value = true
+            },
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp),
         ) {
@@ -202,6 +215,48 @@ private fun indoorNote(i: IndoorState): String =
     if (i.updated == 0L) "Czeka na ESP32" else "Odczyt z ${hhmm(i.updated)}"
 
 @Composable
+private fun SituationCard(notes: List<Note>, summary: String, onTap: () -> Unit) {
+    val shape = RoundedCornerShape(28.dp)
+    val top = notes.firstOrNull() ?: Note(Sev.OK, "Wszystko w normie.")
+    fun col(s: Sev): Color = when (s) {
+        Sev.CRIT -> Palette.Alert
+        Sev.WARN -> Palette.Lamp
+        Sev.OK -> Palette.Signal
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(shape)
+            .background(Palette.PanelHigh)
+            .border(1.dp, Palette.Line, shape)
+            .clickable(onClick = onTap),
+    ) {
+        Box(Modifier.width(5.dp).fillMaxHeight().background(col(top.sev)))
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Caption("Porada dnia", col(top.sev))
+            Text(
+                top.text,
+                fontSize = 20.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Medium,
+                color = Palette.Frost,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            notes.drop(1).take(3).forEach { n ->
+                Row(Modifier.padding(top = 8.dp)) {
+                    Box(Modifier.padding(top = 8.dp, end = 10.dp).size(8.dp).background(col(n.sev), CircleShape))
+                    Text(n.text, fontSize = 15.sp, lineHeight = 21.sp, color = Palette.Frost)
+                }
+            }
+            if (summary.isNotEmpty()) {
+                Text(summary, fontSize = 12.sp, color = Palette.Slate, modifier = Modifier.padding(top = 10.dp))
+            }
+        }
+    }
+}
+
+@Composable
 private fun AdviceCard(adv: AdviceState, hasKey: Boolean, onTap: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Row(
@@ -246,8 +301,7 @@ private fun AdviceCard(adv: AdviceState, hasKey: Boolean, onTap: () -> Unit) {
 }
 
 @Composable
-private fun WeatherPanel(out: OutdoorState, fc: ForecastState, mini: Boolean = true) {
-    val brief = remember(out.tempC, out.code, fc) { Briefing.make(out.tempC, out.code, fc) }
+private fun WeatherPanel(out: OutdoorState) {
     Panel {
         Caption("Pogoda na zewnątrz")
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -274,43 +328,6 @@ private fun WeatherPanel(out: OutdoorState, fc: ForecastState, mini: Boolean = t
             Column(horizontalAlignment = Alignment.End) {
                 Text("Wiatr: ${fmt(out.windKmh)} km/h", fontSize = 14.sp, color = Palette.Slate)
                 Text("Opady: ${out.rainPct?.let { "$it%" } ?: "—"}", fontSize = 14.sp, color = Palette.Slate)
-            }
-        }
-        if (brief.isNotEmpty()) {
-            Text(
-                brief,
-                fontSize = 15.sp,
-                lineHeight = 21.sp,
-                color = Palette.Frost,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-        }
-        if (mini && fc.days.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                fc.days.forEach { d ->
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Palette.PanelHigh)
-                            .padding(vertical = 10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(d.label, fontSize = 12.sp, color = Palette.Slate)
-                        WeatherGlyph(d.code, 30.dp)
-                        Text(
-                            "${fmt(d.min, 0)}° / ${fmt(d.max, 0)}°",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Palette.Frost,
-                        )
-                        Text(
-                            if (d.rainPct == null) "" else "${d.rainPct}%",
-                            fontSize = 12.sp,
-                            color = if ((d.rainPct ?: 0) >= 50) Palette.Lamp else Palette.Slate,
-                        )
-                    }
-                }
             }
         }
     }
@@ -398,6 +415,7 @@ private fun AirPanel(out: OutdoorState) {
 @Composable
 private fun SourceChips(vm: Hub) {
     val src by vm.outdoorSource.collectAsStateWithLifecycle()
+    val view = LocalView.current
     Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("open" to "Open-Meteo", "locker" to "Paczkomat").forEach { (k, label) ->
             val sel = src == k
@@ -411,7 +429,10 @@ private fun SourceChips(vm: Hub) {
                     .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (sel) Palette.Lamp else Palette.PanelHigh)
-                    .clickable { vm.setOutdoorSource(k) }
+                    .clickable {
+                        Haptics.tick(view)
+                        vm.setOutdoorSource(k)
+                    }
                     .padding(vertical = 12.dp),
             )
         }
@@ -441,7 +462,7 @@ fun WeatherScreen(vm: Hub) {
         SectionTitle("Pogoda")
         val fc by vm.forecast.collectAsStateWithLifecycle()
         SourceSelector(vm)
-        WeatherPanel(out, fc, mini = false)
+        WeatherPanel(out)
         RainCard(fc)
         HoursCard(fc)
         TrendCard(fc)
@@ -521,6 +542,7 @@ private fun IndoorPanel(title: String, value: String, unit: String, ind: IndoorS
 @Composable
 fun LightScreen(vm: Hub) {
     val light by vm.light.collectAsStateWithLifecycle()
+    val view = LocalView.current
     LaunchedEffect(Unit) { vm.refreshLight() }
     val on = light.on == true
     Page {
@@ -532,7 +554,10 @@ fun LightScreen(vm: Hub) {
                     .clip(CircleShape)
                     .background(if (on) Palette.Lamp else Palette.PanelHigh)
                     .border(2.dp, if (on) Palette.Lamp else Palette.Line, CircleShape)
-                    .clickable(enabled = !light.busy) { vm.toggleLight() },
+                    .clickable(enabled = !light.busy) {
+                        Haptics.tick(view)
+                        vm.toggleLight()
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 if (light.busy) {
@@ -620,6 +645,7 @@ fun SettingsScreen(vm: Hub) {
     val kscale by vm.kioskScale.collectAsStateWithLifecycle()
     val srvUrl by vm.serverUrl.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
+    val view = LocalView.current
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
         vm.setServer(true)
     }
@@ -720,7 +746,10 @@ fun SettingsScreen(vm: Hub) {
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (sel) Palette.Lamp else Palette.PanelHigh)
-                            .clickable { vm.setTheme(m) }
+                            .clickable {
+                                Haptics.tick(view)
+                                vm.setTheme(m)
+                            }
                             .padding(vertical = 12.dp),
                     )
                 }
@@ -737,7 +766,21 @@ fun SettingsScreen(vm: Hub) {
                 valueRange = 60f..150f,
                 colors = SliderDefaults.colors(thumbColor = Palette.Lamp, activeTrackColor = Palette.Lamp),
             )
-            Text("W kiosku możesz też zmieniać rozmiar przyciskami A− i A+.", fontSize = 12.sp, color = Palette.Slate)
+            val hap by vm.hapticsOn.collectAsStateWithLifecycle()
+            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Wibracje", fontSize = 15.sp, color = Palette.Frost)
+                    Text("Reakcje dotykowe, potwierdzenia i ostrzeżenia.", fontSize = 12.sp, color = Palette.Slate)
+                }
+                Switch(
+                    checked = hap,
+                    onCheckedChange = {
+                        vm.setHaptics(it)
+                        if (it) Haptics.tick(view)
+                    },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.OnLamp, checkedTrackColor = Palette.Lamp),
+                )
+            }
         }
 
         Panel {
@@ -818,6 +861,7 @@ fun SettingsScreen(vm: Hub) {
                 s.serverPin = sPin
                 s.espUrl = espUrl
                 vm.onSettingsSaved()
+                Haptics.confirm(view)
                 saved = true
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),

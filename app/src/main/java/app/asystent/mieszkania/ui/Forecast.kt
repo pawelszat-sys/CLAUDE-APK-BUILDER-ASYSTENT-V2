@@ -87,86 +87,30 @@ fun HoursCard(f: ForecastState) {
 fun TrendCard(f: ForecastState) {
     var mode by remember { mutableIntStateOf(0) }
     val hum = mode == 1
-    val pts = f.hours.map { if (hum) it.hum else it.temp }
-    val valid = pts.filterNotNull()
-    val lineColor = Palette.Lamp
-    val lineMuted = Palette.Lamp.copy(alpha = 0.55f)
-    val gridColor = Palette.Line
+    val slice = f.hours.drop(f.nowIndex).take(25)
+    val n = slice.size
+    val vals = slice.map { if (hum) it.hum else it.temp }
+    val xs = slice.indices.map { it.toFloat() / (n - 1).coerceAtLeast(1) }
+    val ticks = slice.mapIndexedNotNull { i, h ->
+        if (h.label.endsWith(":00") && h.label.substring(0, 2).toIntOrNull()?.rem(6) == 0) xs[i] to h.label else null
+    }
     Panel {
-        Caption("Ostatnie 24 h i prognoza na 24 h")
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Temperatura", "Wilgotność").forEachIndexed { i, label ->
-                val sel = mode == i
-                Text(
-                    label,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (sel) Palette.OnLamp else Palette.Frost,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (sel) Palette.Lamp else Palette.PanelHigh)
-                        .clickable { mode = i }
-                        .padding(vertical = 10.dp),
-                )
-            }
-        }
-        if (valid.size < 2) {
-            Text("Brak danych.", fontSize = 15.sp, color = Palette.Slate, modifier = Modifier.padding(top = 10.dp))
+        Caption("Prognoza na najbliższe 24 godziny")
+        ChipRow(listOf("Temperatura", "Wilgotność"), mode) { mode = it }
+        if (vals.filterNotNull().size < 2) {
+            Text("Brak danych prognozy.", fontSize = 15.sp, color = Palette.Slate, modifier = Modifier.padding(top = 10.dp))
         } else {
-            val lo = valid.min()
-            val hi = valid.max()
-            val ni = f.nowIndex.coerceIn(0, pts.size - 1)
-            Canvas(Modifier.padding(top = 12.dp).fillMaxWidth().height(140.dp)) {
-                val span = max(hi - lo, 1.0)
-                val padV = 10.dp.toPx()
-                val hgt = size.height - 2 * padV
-                val n = pts.size
-                fun px(i: Int): Float = i * size.width / (n - 1)
-                fun py(v: Double): Float = padV + (1f - ((v - lo) / span).toFloat()) * hgt
-                fun line(from: Int, to: Int): Path {
-                    val p = Path()
-                    var started = false
-                    for (i in from..to) {
-                        val v = pts[i]
-                        if (v == null) {
-                            started = false
-                            continue
-                        }
-                        if (!started) {
-                            p.moveTo(px(i), py(v))
-                            started = true
-                        } else {
-                            p.lineTo(px(i), py(v))
-                        }
-                    }
-                    return p
-                }
-                val nx = px(ni)
-                val w = 3.dp.toPx()
-                drawLine(gridColor, Offset(nx, 0f), Offset(nx, size.height), strokeWidth = 1.dp.toPx())
-                drawPath(line(0, ni), lineColor, style = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                drawPath(
-                    line(ni, n - 1),
-                    lineMuted,
-                    style = Stroke(
-                        w,
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 12f)),
-                    ),
-                )
-                pts[ni]?.let { drawCircle(lineColor, 5.dp.toPx(), Offset(nx, py(it))) }
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("−24 h", fontSize = 12.sp, color = Palette.Slate)
-                Text("teraz", fontSize = 12.sp, color = Palette.Slate)
-                Text("+24 h", fontSize = 12.sp, color = Palette.Slate)
-            }
+            LineChart(
+                xs = xs,
+                vals = vals,
+                tipTimes = slice.map { it.label },
+                ticks = ticks,
+                unit = if (hum) "%" else "°C",
+                tipDecimals = if (hum) 0 else 1,
+                defaultIndex = 0,
+            )
             Text(
-                "Zakres: ${fmt(lo, 0)}–${fmt(hi, 0)} ${if (hum) "%" else "°C"}. " +
-                    "Linia ciągła to historia, przerywana to prognoza. Źródło: Open-Meteo.",
+                "Przesuń palcem po wykresie, żeby zobaczyć wartość w danej godzinie. Źródło: Open-Meteo.",
                 fontSize = 12.sp,
                 color = Palette.Slate,
                 modifier = Modifier.padding(top = 4.dp),

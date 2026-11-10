@@ -102,4 +102,8 @@ class Settings(context: Context) {
     var espUrl: String
         get() = str("espUrl", "")
         set(v) = putStr("espUrl", v)
+
+    var haptics: Boolean
+        get() = p.getBoolean("haptics", true)
+        set(v) = p.edit().putBoolean("haptics", v).apply()
 }

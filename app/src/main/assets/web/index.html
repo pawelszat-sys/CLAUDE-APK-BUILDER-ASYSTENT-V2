@@ -232,6 +232,7 @@ setInterval(pull,2000);pull();
 function wxGlyph(o,s){return (o.code===0||o.code===1)?ico('sun',s,'color:var(--lamp)'):ico('cloud',s,'color:var(--slate)');}
 function airTone(w){return w<50?'#4cc38a':w<100?'#f2b544':'#f0735f';}
 function wxExtra(mini){
+ return '';
  let h='';
  if(S&&S.briefing)h+='<p style="font-size:15px;line-height:1.4;margin-top:12px">'+esc(S.briefing)+'</p>';
  const D=S&&S.forecast&&S.forecast.days;
@@ -254,22 +255,63 @@ function airCard(o,detail){
  '<div class="note">PM2,5: '+f(o.pm25)+' ('+f(o.pm25Pct,0)+'% normy), PM10: '+f(o.pm10)+' ('+f(o.pm10Pct,0)+'% normy)</div>'+
  (o.airSource?'<div class="note">Źródło: '+esc(o.airSource)+'</div>':'')+'</div>';
 }
+const CHS={},SC={};
+function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){}}
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('button'))buzz(10);});
+function sitCard(){
+ const N=(S.notes&&S.notes.length)?S.notes:[{s:2,t:'Wszystko w normie.'}],c=['var(--alert)','var(--lamp)','var(--signal)'],top=N[0];
+ return '<div class="advice" id="advice" style="box-shadow:inset 5px 0 0 '+c[top.s]+'"><div class="cap" style="color:'+c[top.s]+'">Porada dnia</div><p>'+esc(top.t)+'</p>'+
+  N.slice(1,4).map(n=>'<div style="display:flex;gap:8px;margin-top:8px;font-size:15px"><i style="flex:none;width:8px;height:8px;border-radius:50%;margin-top:7px;background:'+c[n.s]+'"></i><span>'+esc(n.t)+'</span></div>').join('')+
+  (S.summary?'<div class="note" style="margin-top:10px">'+esc(S.summary)+'</div>':'')+'</div>';
+}
+function lineChart(id,xs,vals,labels,ticks,unit,dd,gap,def){
+ const ok=vals.filter(v=>v!=null);if(ok.length<2)return '';
+ const W=320,H=190,L=38,R=8,T=28,B=24,pw=W-L-R,ph=H-T-B;
+ const lo=Math.min(...ok),hi=Math.max(...ok),sp=Math.max(hi-lo,1),yd=(hi-lo<5)?1:0;
+ const X=i=>L+xs[i]*pw,Y=v=>T+(1-(v-lo)/sp)*ph;
+ let d='',st=false;
+ vals.forEach((v,i)=>{if(v==null||(i>0&&xs[i]-xs[i-1]>gap))st=false;if(v==null)return;d+=(st?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);st=true;});
+ const grid=[lo,(lo+hi)/2,hi].map(v=>'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="var(--line)"/><text x="'+(L-5)+'" y="'+(Y(v)+3.5).toFixed(1)+'" font-size="10" text-anchor="end" fill="var(--slate)">'+f(v,yd)+'</text>').join('');
+ const tk=ticks.map(t=>'<text x="'+(L+t.x*pw).toFixed(1)+'" y="'+(H-7)+'" font-size="10" text-anchor="middle" fill="var(--slate)">'+t.l+'</text>').join('');
+ CHS[id]={x:vals.map((v,i)=>X(i)),y:vals.map(v=>v==null?null:Y(v)),v:vals,l:labels,u:unit,dd:dd,def:def,T:T,B:H-B};
+ return '<svg data-chart="'+id+'" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;touch-action:pan-y;margin-top:10px">'+grid+tk+
+  '<path d="'+d+'" fill="none" stroke="var(--lamp)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'+
+  '<line id="'+id+'-l" stroke="var(--line)" stroke-dasharray="3 3"/><circle id="'+id+'-c" r="4.5" fill="var(--lamp)"/>'+
+  '<rect id="'+id+'-r" rx="7" fill="var(--high)" stroke="var(--line)"/><text id="'+id+'-x" font-size="11" font-weight="500" fill="var(--frost)"/></svg>';
+}
+function scrubTo(id){
+ const c=CHS[id],l=$(id+'-l');if(!c||!l)return;
+ let i=SC[id];if(i==null||i<0||i>=c.v.length||c.v[i]==null)i=Math.min(Math.max(c.def,0),c.v.length-1);
+ while(i>=0&&c.v[i]==null)i--;if(i<0)return;
+ const x=c.x[i],y=c.y[i];
+ l.setAttribute('x1',x);l.setAttribute('x2',x);l.setAttribute('y1',c.T);l.setAttribute('y2',c.B);
+ const dot=$(id+'-c');dot.setAttribute('cx',x);dot.setAttribute('cy',y);
+ const t=$(id+'-x');t.textContent=c.l[i]+'  '+f(c.v[i],c.dd)+' '+c.u;
+ const w=t.getBBox().width+16,rx=Math.min(Math.max(x-w/2,1),319-w);
+ t.setAttribute('x',rx+8);t.setAttribute('y',16);
+ const r=$(id+'-r');r.setAttribute('x',rx);r.setAttribute('y',1);r.setAttribute('width',w);r.setAttribute('height',22);
+}
+function onScrub(e){
+ const s=e.target.closest&&e.target.closest('svg[data-chart]');if(!s)return;
+ if(e.type==='pointermove'&&e.pointerType==='mouse'&&!e.buttons)return;
+ const id=s.dataset.chart,c=CHS[id];if(!c)return;
+ const r=s.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*320;
+ let b=-1,bd=1e9;c.x.forEach((px,i)=>{if(c.v[i]==null)return;const d=Math.abs(px-x);if(d<bd){bd=d;b=i;}});
+ if(b>=0&&SC[id]!==b){SC[id]=b;scrubTo(id);buzz(6);}
+}
 let fcMode=0;
 function fcHTML(F){
  if(!F||!F.hours||!F.hours.length)return '';
  const ni=F.nowIndex,H=F.hours;
  let h='<div class="card"><div class="cap">Czy będzie padać?</div><p style="font-size:18px;font-weight:500;margin-top:6px">'+esc(F.rainText||'Brak danych prognozy.')+'</p></div>';
  h+='<div class="card"><div class="cap">Najbliższe godziny</div><div style="display:flex;gap:18px;overflow-x:auto;margin-top:10px">'+H.slice(ni,ni+12).map(x=>'<div style="text-align:center;flex:none"><div class="note" style="margin:0">'+x.l+'</div><div style="font-size:20px;font-weight:600;margin-top:4px">'+f(x.t,0)+'°</div><div class="note" style="margin:2px 0 0;'+((x.r||0)>=50?'color:var(--lamp)':'')+'">'+(x.r==null?'':x.r+'%')+'</div></div>').join('')+'</div></div>';
- const key=fcMode?'h':'t',vals=H.map(x=>x[key]),ok=vals.filter(v=>v!=null);
- h+='<div class="card"><div class="cap">Ostatnie 24 h i prognoza na 24 h</div><div class="seg"><button data-fm="0" class="'+(fcMode?'':'on')+'">Temperatura</button><button data-fm="1" class="'+(fcMode?'on':'')+'">Wilgotność</button></div>';
- if(ok.length<2)h+='<p class="note">Brak danych.</p>';
- else{
-  const lo=Math.min(...ok),hi=Math.max(...ok),sp=Math.max(hi-lo,1),n=vals.length;
-  const X=i=>i*300/(n-1),Y=v=>10+(1-(v-lo)/sp)*100;
-  const seg=(a,b)=>{let d='',st=false;for(let i=a;i<=b;i++){const v=vals[i];if(v==null){st=false;continue;}d+=(st?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);st=true;}return d;};
-  h+='<svg viewBox="0 0 300 120" style="width:100%;height:auto"><line x1="'+X(ni)+'" y1="0" x2="'+X(ni)+'" y2="120" stroke="var(--line)"/><path d="'+seg(0,ni)+'" fill="none" stroke="var(--lamp)" stroke-width="2.5" stroke-linecap="round"/><path d="'+seg(ni,n-1)+'" fill="none" stroke="var(--lamp)" stroke-opacity=".55" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/>'+(vals[ni]!=null?'<circle cx="'+X(ni)+'" cy="'+Y(vals[ni])+'" r="4" fill="var(--lamp)"/>':'')+'</svg>';
-  h+='<div class="row note"><span>−24 h</span><span>teraz</span><span>+24 h</span></div><div class="note">Zakres: '+f(lo,0)+'–'+f(hi,0)+(fcMode?' %':' °C')+'. Linia ciągła to historia, przerywana to prognoza. Źródło: Open-Meteo.</div>';
- }
+ const sl=H.slice(ni,ni+25),n=sl.length,key=fcMode?'h':'t',vals=sl.map(x=>x[key]);
+ const xs=sl.map((x,i)=>i/Math.max(n-1,1)),ticks=[];
+ sl.forEach((x,i)=>{if(x.l.endsWith(':00')&&parseInt(x.l,10)%6===0)ticks.push({x:xs[i],l:x.l});});
+ h+='<div class="card"><div class="cap">Prognoza na najbliższe 24 godziny</div><div class="seg"><button data-fm="0" class="'+(fcMode?'':'on')+'">Temperatura</button><button data-fm="1" class="'+(fcMode?'on':'')+'">Wilgotność</button></div>';
+ const c=lineChart('fc',xs,vals,sl.map(x=>x.l),ticks,fcMode?'%':'°C',fcMode?0:1,1,0);
+ h+=c||'<p class="note">Brak danych prognozy.</p>';
+ if(c)h+='<div class="note">Przesuń palcem po wykresie, żeby zobaczyć wartość w danej godzinie. Źródło: Open-Meteo.</div>';
  h+='</div>';
  if(F.days&&F.days.length)h+='<div class="card"><div class="cap">Najbliższe dni</div>'+F.days.map(d=>'<div class="row" style="margin-top:10px"><span style="flex:1;font-size:16px">'+esc(d.l)+'</span><span style="font-weight:500">'+f(d.min,0)+'° / '+f(d.max,0)+'°</span><span class="note" style="width:88px;text-align:right;margin:0">'+(d.r==null?'':'opady '+d.r+'%')+'</span></div>').join('')+'</div>';
  return h;
@@ -283,7 +325,7 @@ function render(){
  const date=now.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
  if(!window._typing||document.activeElement.id!=='txt'){}
  $('v-home').innerHTML='<div class="home"><div class="stack"><div><div class="hello">'+hello+'</div><div class="clock">'+p(h)+':'+p(now.getMinutes())+'</div><div class="date">'+date+'</div></div>'+
-  '<div class="advice" id="advice"><div class="cap">Porada dnia</div><p>'+advBody+'</p>'+(a.error?'<div class="err">'+esc(a.error)+'</div>':'')+(a.text&&a.time?'<div class="note">Gemini, '+hm(a.time)+'. Stuknij, żeby odświeżyć.</div>':'')+'</div></div>'+
+  sitCard()+'</div>'+
   '<div class="stack"><div class="tiles">'+
   '<div class="card"><div class="cap">Na zewnątrz</div><div class="val">'+f(o.tempC)+'<small>°C</small></div><div class="note">'+esc(o.tempSource||'brak danych')+'</div></div>'+
   '<div class="card"><div class="cap">W domu</div><div class="val">'+f(i.tempC)+'<small>°C</small></div><div class="note">'+inNote+'</div></div>'+
@@ -312,11 +354,11 @@ function render(){
  // kiosk
  $('kw').innerHTML=o.tempC==null?'—':f(o.tempC,0)+'<span style="font-size:.3em;vertical-align:top;opacity:.5">°C</span>';$('kic').innerHTML=wxGlyph(o,96).replace('<svg','<svg class="k-ic"');
  $('kcity').textContent=(S.city||'').toUpperCase();$('ki').innerHTML=i.tempC==null?'—':f(i.tempC)+'<span style="font-size:.3em;vertical-align:top;opacity:.5">°C</span>';$('kh').textContent=f(i.humidity,0)+' % wilg.';
- bind();
+ scrubTo('fc');bind();
 }
 function bind(){
  const g=id=>$(id);
- if(g('advice'))g('advice').onclick=()=>act('/api/advice/refresh');
+ if(g('advice'))g('advice').onclick=()=>act('/api/refresh');
  if(g('bK2'))g('bK2').onclick=()=>kioskOn(true);
  if(g('bRef'))g('bRef').onclick=()=>act('/api/refresh');
  if(g('bulb'))g('bulb').onclick=()=>act('/api/light/toggle');
@@ -382,20 +424,18 @@ async function loadHist(){const j=await api('/api/history');if(j){HIST=j;drawHis
 setInterval(loadHist,30000);loadHist();
 function drawHist(){
  const el=$('hcard');if(!el)return;
- const span=hrng?7*864e5:864e5,from=Date.now()-span,k=['tp','h','p'][hmet];
- const D=HIST.filter(x=>x.t>=from),V=D.map(x=>x[k]),ok=V.filter(v=>v!=null);
- let h='<div class="cap">Historia z czujnika ESP32</div><div class="seg"><button data-hm="0" class="'+(hmet===0?'on':'')+'">Temperatura</button><button data-hm="1" class="'+(hmet===1?'on':'')+'">Wilgotność</button><button data-hm="2" class="'+(hmet===2?'on':'')+'">Ciśnienie</button></div><div class="seg"><button data-hr="0" class="'+(hrng?'':'on')+'">24 godziny</button><button data-hr="1" class="'+(hrng?'on':'')+'">7 dni</button></div>';
- if(ok.length<2)h+='<p class="note">Za mało odczytów. Zapisujemy jeden co 5 minut, wykres pojawi się po chwili od podłączenia ESP32.</p>';
- else{
-  const lo=Math.min(...ok),hi=Math.max(...ok),sp=Math.max(hi-lo,1),X=t=>(t-from)/span*300,Y=v=>10+(1-(v-lo)/sp)*100;
-  let d='',st=false;
-  D.forEach((x,i)=>{const v=V[i];if(v==null||(i>0&&x.t-D[i-1].t>18e5))st=false;if(v==null)return;d+=(st?'L':'M')+X(x.t).toFixed(1)+' '+Y(v).toFixed(1);st=true;});
-  const dg=hmet===2?0:1;
-  h+='<svg viewBox="0 0 300 120" style="width:100%;height:auto"><path d="'+d+'" fill="none" stroke="var(--lamp)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="row note"><span>'+(hrng?'−7 dni':'−24 h')+'</span><span>teraz</span></div><div class="note">Zakres: '+f(lo,dg)+'–'+f(hi,dg)+' '+['°C','%','hPa'][hmet]+', odczytów: '+ok.length+'.</div>';
- }
- el.innerHTML=h;
+ const now=Date.now(),span=864e5,from=now-span,k=['tp','h','p'][hmet];
+ const D=HIST.filter(q=>q.t>=from),vals=D.map(q=>q[k]);
+ let h='<div class="cap">Historia z czujnika ESP32, ostatnie 24 godziny</div><div class="seg"><button data-hm="0" class="'+(hmet===0?'on':'')+'">Temperatura</button><button data-hm="1" class="'+(hmet===1?'on':'')+'">Wilgotność</button><button data-hm="2" class="'+(hmet===2?'on':'')+'">Ciśnienie</button></div>';
+ const xs=D.map(q=>(q.t-from)/span),labs=D.map(q=>new Date(q.t).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'})),ticks=[];
+ for(let t0=Math.ceil(from/36e5)*36e5;t0<=now;t0+=36e5){const d=new Date(t0);if(d.getHours()%6===0)ticks.push({x:(t0-from)/span,l:String(d.getHours()).padStart(2,'0')+':00'});}
+ const c=lineChart('hs',xs,vals,labs,ticks,['°C','%','hPa'][hmet],hmet===0?1:0,.03,D.length-1);
+ h+=c||'<p class="note">Za mało odczytów. Zapisujemy jeden co 5 minut, wykres pojawi się po chwili od podłączenia ESP32.</p>';
+ if(c)h+='<div class="note">Przesuń palcem po wykresie, żeby zobaczyć wartość w danej godzinie.</div>';
+ el.innerHTML=h;scrubTo('hs');
 }
-$('v-indoor').addEventListener('click',e=>{const a=e.target.closest('[data-hm]'),b=e.target.closest('[data-hr]');if(a){hmet=+a.dataset.hm;drawHist();}if(b){hrng=+b.dataset.hr;drawHist();}});
+$('v-indoor').addEventListener('click',e=>{const a=e.target.closest('[data-hm]');if(a){hmet=+a.dataset.hm;SC.hs=null;drawHist();}});
+['v-weather','v-indoor'].forEach(id=>{$(id).addEventListener('pointerdown',onScrub);$(id).addEventListener('pointermove',onScrub);});
 $('v-weather').addEventListener('click',e=>{const b=e.target.closest('[data-src]');if(b)act('/api/source',{s:b.dataset.src});});
 </script>
 </body>

@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
@@ -128,6 +129,8 @@ private val suggestions = listOf(
 @Composable
 fun AssistantScreen(vm: Hub) {
     val st by vm.assistant.collectAsStateWithLifecycle()
+    val view = LocalView.current
+    LaunchedEffect(st.mode) { if (st.mode == "speak") Haptics.confirm(view) }
     var text by remember { mutableStateOf("") }
     var showHist by remember { mutableStateOf(false) }
     var micNote by remember { mutableStateOf(false) }
@@ -138,6 +141,7 @@ fun AssistantScreen(vm: Hub) {
     fun send() {
         val q = text
         text = ""
+        Haptics.tick(view)
         vm.ask(q)
     }
 
@@ -190,7 +194,10 @@ fun AssistantScreen(vm: Hub) {
                         .clip(RoundedCornerShape(20.dp))
                         .background(Palette.Panel)
                         .border(1.dp, Palette.Line, RoundedCornerShape(20.dp))
-                        .clickable { vm.ask(q) }
+                        .clickable {
+                            Haptics.tick(view)
+                            vm.ask(q)
+                        }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
