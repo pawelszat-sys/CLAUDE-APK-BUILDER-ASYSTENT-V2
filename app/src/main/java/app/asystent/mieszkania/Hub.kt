@@ -563,6 +563,9 @@ class Hub private constructor(private val app: Application) {
         }
     }
 
+    private val _forecast = MutableStateFlow(ForecastState())
+    val forecast: StateFlow<ForecastState> = _forecast.asStateFlow()
+
     // ---------- źródło danych zewnętrznych ----------
 
     val outdoorSource = MutableStateFlow(settings.outdoorSource)
