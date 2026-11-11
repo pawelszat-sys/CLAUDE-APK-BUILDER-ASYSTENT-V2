@@ -60,8 +60,8 @@ class Settings(context: Context) {
         set(v) = putStr("tuyaDevice", v)
 
     var clapSensitivity: Int
-        get() = p.getInt("clapSensitivity", 50)
-        set(v) = p.edit().putInt("clapSensitivity", v).apply()
+        get() = p.getInt("clapSens2", 40)
+        set(v) = p.edit().putInt("clapSens2", v).apply()
 
     var clapsEnabled: Boolean
         get() = p.getBoolean("clapsEnabled", false)
@@ -106,4 +106,16 @@ class Settings(context: Context) {
     var haptics: Boolean
         get() = p.getBoolean("haptics", true)
         set(v) = p.edit().putBoolean("haptics", v).apply()
+
+    var assistantName: String
+        get() = str("assistantName", "Laura")
+        set(v) = putStr("assistantName", v)
+
+    var briefText: String
+        get() = str("briefText", "")
+        set(v) = putStr("briefText", v)
+
+    var briefTime: Long
+        get() = p.getLong("briefTime", 0L)
+        set(v) = p.edit().putLong("briefTime", v).apply()
 }

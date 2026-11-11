@@ -146,7 +146,7 @@ fun AssistantScreen(vm: Hub) {
     }
 
     val controls: @Composable ColumnScope.() -> Unit = {
-        Text(modeLabel(st.mode), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Palette.Slate)
+        Text("${vm.settings.assistantName}: ${modeLabel(st.mode)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Palette.Slate)
         Column(Modifier.heightIn(min = 84.dp).padding(horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (st.q.isEmpty() && st.a.isEmpty()) {
                 Text(

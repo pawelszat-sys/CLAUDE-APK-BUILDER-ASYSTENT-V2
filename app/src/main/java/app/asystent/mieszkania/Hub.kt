@@ -79,12 +79,14 @@ class Hub private constructor(private val app: Application) {
     val hasGeminiKey = MutableStateFlow(settings.geminiKey.isNotBlank())
     val clapsOn = MutableStateFlow(false)
     val micLevel = MutableStateFlow(0)
+    val clapDiag = MutableStateFlow("")
     val clapInfo = MutableStateFlow("")
     val kiosk = MutableStateFlow(false)
 
     private val detector = ClapDetector(
         onClaps = { n -> scope.launch { handleClaps(n) } },
         onLevel = { micLevel.value = it },
+        onDiag = { clapDiag.value = it },
     )
 
     private var foreground = false
@@ -103,6 +105,7 @@ class Hub private constructor(private val app: Application) {
             while (true) {
                 if (foreground || serverUp) {
                     refreshOutdoor(false)
+                    refreshBriefing(false)
                 }
                 delay(5 * 60_000L)
             }
@@ -115,6 +118,7 @@ class Hub private constructor(private val app: Application) {
         foreground = true
         if (settings.clapsEnabled && micGranted) startDetector()
         refreshOutdoor(false)
+        refreshBriefing(false)
     }
 
     fun onBackground() {
@@ -155,7 +159,10 @@ class Hub private constructor(private val app: Application) {
             2 -> Haptics.pulse(app, 0, 40, 80, 40)
         }
         when (n) {
-            1 -> refreshOutdoor(true)
+            1 -> {
+                refreshOutdoor(true)
+                refreshBriefing(true)
+            }
             2 -> toggleLight()
         }
     }
@@ -458,7 +465,7 @@ class Hub private constructor(private val app: Application) {
         val prompt = buildAskPrompt(text)
         scope.launch(Dispatchers.IO) {
             try {
-                finishAsk(text, Gemini.ask(key, settings.geminiModel.trim(), ASSISTANT_SYSTEM, prompt))
+                finishAsk(text, Gemini.ask(key, settings.geminiModel.trim(), ASSISTANT_SYSTEM + " Masz na imię ${settings.assistantName.ifBlank { "Laura" }}.", prompt))
             } catch (e: Exception) {
                 assistant.update { it.copy(a = e.message ?: "Błąd asystenta.", mode = "idle", busy = false) }
             }
@@ -547,6 +554,40 @@ class Hub private constructor(private val app: Application) {
                     Haptics.pulse(app, 0, 90, 70, 90)
                 }
                 seen = key
+            }
+        }
+    }
+
+    // ---------- krótki briefing dnia: Polska i świat (Gemini + wyszukiwarka) ----------
+
+    private fun parseNews(t: String): List<String> =
+        t.lines()
+            .map { it.trim().trimStart('-', '*', '•').trim().replace(Regex("\\[\\d+(,\\s*\\d+)*]"), "").trim() }
+            .filter { it.isNotBlank() }
+            .take(3)
+
+    val news = MutableStateFlow(parseNews(settings.briefText))
+    private var newsBusy = false
+
+    fun refreshBriefing(force: Boolean) {
+        val key = settings.geminiKey.trim()
+        if (key.isEmpty() || newsBusy) return
+        val age = System.currentTimeMillis() - settings.briefTime
+        if (!force && age < 4 * 3600_000L) return
+        if (force && age < 5 * 60_000L) return
+        newsBusy = true
+        val model = settings.geminiModel.trim()
+        scope.launch(Dispatchers.IO) {
+            try {
+                val day = SimpleDateFormat("EEEE, d MMMM yyyy", pl).format(Date())
+                val text = Gemini.ask(key, model, BRIEF_SYSTEM, "Dzisiaj jest $day. Przygotuj briefing.", true)
+                settings.briefText = text
+                settings.briefTime = System.currentTimeMillis()
+                news.value = parseNews(text)
+            } catch (e: Exception) {
+                // zostaje poprzedni briefing
+            } finally {
+                newsBusy = false
             }
         }
     }
@@ -650,6 +691,7 @@ class Hub private constructor(private val app: Application) {
             .put("userName", settings.userName)
             .put("outdoorSource", settings.outdoorSource)
             .put("notes", notesJ)
+            .put("news", JSONArray(news.value))
             .put("summary", Situation.summary(o, i))
             .put("espStatus", espStatus.value)
             .put("briefing", Briefing.make(o.tempC, o.code, _forecast.value))
@@ -699,3 +741,10 @@ private const val ASSISTANT_SYSTEM =
         "Nie mów, że nie masz dostępu do danych: użyj tego, co jest w wiadomości lub w wyszukiwarce. " +
         "Jeśli czegoś naprawdę nie da się ustalić, powiedz to jednym zdaniem i podaj najlepsze przybliżenie. " +
         "Odpowiadaj po polsku, zwięźle (zwykle 1 do 4 zdań), bez emotikon, bez wstępów i bez formatowania markdown."
+
+private const val BRIEF_SYSTEM =
+    "Piszesz bardzo krótki dzienny briefing do panelu w domu. Użyj wyszukiwarki Google i podaj dokładnie dwie linie: " +
+        "najpierw 'Polska: ' i jedno najważniejsze lub najciekawsze wydarzenie z Polski z ostatnich 24 godzin, " +
+        "potem 'Świat: ' i jedno z całego świata. Każda linia to jedno zdanie, maksymalnie 20 słów, konkretne " +
+        "(kto, co, gdzie), neutralne w tonie. Bez wstępów, bez porad, bez ogólników, bez emotikon, " +
+        "bez markdown i bez przypisów."

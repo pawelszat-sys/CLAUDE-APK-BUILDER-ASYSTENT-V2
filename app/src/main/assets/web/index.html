@@ -262,6 +262,7 @@ function sitCard(){
  const N=(S.notes&&S.notes.length)?S.notes:[{s:2,t:'Wszystko w normie.'}],c=['var(--alert)','var(--lamp)','var(--signal)'],top=N[0];
  return '<div class="advice" id="advice" style="box-shadow:inset 5px 0 0 '+c[top.s]+'"><div class="cap" style="color:'+c[top.s]+'">Porada dnia</div><p>'+esc(top.t)+'</p>'+
   N.slice(1,4).map(n=>'<div style="display:flex;gap:8px;margin-top:8px;font-size:15px"><i style="flex:none;width:8px;height:8px;border-radius:50%;margin-top:7px;background:'+c[n.s]+'"></i><span>'+esc(n.t)+'</span></div>').join('')+
+  (S.news&&S.news.length?'<div style="height:1px;background:var(--line);margin-top:12px"></div>'+S.news.map(t=>'<div style="margin-top:8px;font-size:14px;line-height:1.4">'+esc(t)+'</div>').join(''):'')+
   (S.summary?'<div class="note" style="margin-top:10px">'+esc(S.summary)+'</div>':'')+'</div>';
 }
 function lineChart(id,xs,vals,labels,ticks,unit,dd,gap,def){

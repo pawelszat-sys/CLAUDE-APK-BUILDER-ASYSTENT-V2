@@ -105,6 +105,7 @@ fun StartScreen(vm: Hub) {
     val fc by vm.forecast.collectAsStateWithLifecycle()
     val name = vm.settings.userName.trim()
     val notes by vm.notes.collectAsStateWithLifecycle()
+    val news by vm.news.collectAsStateWithLifecycle()
     val sumText = remember(out, ind) { Situation.summary(out, ind) }
     val view = LocalView.current
 
@@ -143,9 +144,10 @@ fun StartScreen(vm: Hub) {
             )
             Text(date, fontSize = 16.sp, color = Palette.Slate)
         }
-        SituationCard(notes, sumText) {
+        SituationCard(notes, sumText, news) {
             Haptics.tick(view)
             vm.refreshOutdoor(true)
+            vm.refreshBriefing(true)
         }
     }
 
@@ -215,7 +217,7 @@ private fun indoorNote(i: IndoorState): String =
     if (i.updated == 0L) "Czeka na ESP32" else "Odczyt z ${hhmm(i.updated)}"
 
 @Composable
-private fun SituationCard(notes: List<Note>, summary: String, onTap: () -> Unit) {
+private fun SituationCard(notes: List<Note>, summary: String, news: List<String>, onTap: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     val top = notes.firstOrNull() ?: Note(Sev.OK, "Wszystko w normie.")
     fun col(s: Sev): Color = when (s) {
@@ -243,10 +245,22 @@ private fun SituationCard(notes: List<Note>, summary: String, onTap: () -> Unit)
                 color = Palette.Frost,
                 modifier = Modifier.padding(top = 6.dp),
             )
-            notes.drop(1).take(3).forEach { n ->
+            notes.drop(1).take(if (news.isEmpty()) 3 else 2).forEach { n ->
                 Row(Modifier.padding(top = 8.dp)) {
                     Box(Modifier.padding(top = 8.dp, end = 10.dp).size(8.dp).background(col(n.sev), CircleShape))
                     Text(n.text, fontSize = 15.sp, lineHeight = 21.sp, color = Palette.Frost)
+                }
+            }
+            if (news.isNotEmpty()) {
+                Box(Modifier.padding(top = 12.dp).fillMaxWidth().height(1.dp).background(Palette.Line))
+                news.forEach { line ->
+                    Text(
+                        line,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        color = Palette.Frost,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
             }
             if (summary.isNotEmpty()) {
@@ -631,6 +645,7 @@ fun SettingsScreen(vm: Hub) {
     var lockerTemp by remember { mutableStateOf(s.tempFromLocker) }
     var gKey by remember { mutableStateOf(s.geminiKey) }
     var gModel by remember { mutableStateOf(s.geminiModel) }
+    var aName by remember { mutableStateOf(s.assistantName) }
     var tBase by remember { mutableStateOf(s.tuyaBase) }
     var tId by remember { mutableStateOf(s.tuyaId) }
     var tSecret by remember { mutableStateOf(s.tuyaSecret) }
@@ -662,6 +677,7 @@ fun SettingsScreen(vm: Hub) {
     }
     val level by vm.micLevel.collectAsStateWithLifecycle()
     val listening by vm.clapsOn.collectAsStateWithLifecycle()
+    val diag by vm.clapDiag.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -705,6 +721,8 @@ fun SettingsScreen(vm: Hub) {
             Field("Klucz API", gKey, { gKey = it; saved = false }, secret = true)
             Spacer(Modifier.height(8.dp))
             Field("Nazwa modelu", gModel, { gModel = it; saved = false })
+            Spacer(Modifier.height(8.dp))
+            Field("Imię asystenta", aName, { aName = it; saved = false })
         }
 
         Panel {
@@ -835,10 +853,21 @@ fun SettingsScreen(vm: Hub) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                if (listening) "Poziom dźwięku: $level. Większa czułość wykrywa cichsze klaśnięcia."
+                if (listening) "Poziom dźwięku: $level. Wyższa czułość wykrywa cichsze klaśnięcia. Gwizd, głos i stuknięcia są odrzucane."
                 else "Włącz wykrywanie klaśnięć na ekranie Start, żeby zobaczyć poziom dźwięku.",
                 fontSize = 12.sp,
                 color = Palette.Slate,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+
+        Panel {
+            Caption("Diagnostyka klaśnięć")
+            Text(
+                diag.ifEmpty { "Włącz wykrywanie klaśnięć na ekranie Start i klaśnij. Tu zobaczysz, dlaczego dźwięk został przyjęty albo odrzucony." },
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                color = if (diag.startsWith("Klaśnięcie")) Palette.Signal else Palette.Slate,
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
@@ -853,6 +882,7 @@ fun SettingsScreen(vm: Hub) {
                 s.tempFromLocker = lockerTemp
                 s.geminiKey = gKey
                 s.geminiModel = gModel
+                s.assistantName = aName
                 s.tuyaBase = tBase
                 s.tuyaId = tId
                 s.tuyaSecret = tSecret
