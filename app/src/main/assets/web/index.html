@@ -350,7 +350,7 @@ function render(){
  // asystent: tylko dynamiczne elementy
  oA.set(as.mode);$('astate').textContent=({listen:'słucham',think:'myślę',speak:'mówię'})[as.mode]||'czuwam';
  $('say').innerHTML=(!as.q&&!as.a)?'<div class="a" style="color:var(--slate);font-weight:400;font-size:17px">Wybierz podpowiedź albo napisz wiadomość.</div>':
-  (as.q?'<div class="u">'+esc(as.q)+'</div>':'')+(as.a?'<div class="a">'+esc(as.a)+'</div>':'');
+  (as.q?'<div class="u">'+esc(as.q)+'</div>':'')+(as.a?'<div class="a">'+esc(as.a)+'</div>':'')+(as.note?'<div class="note" style="margin-top:6px">'+esc(as.note)+'</div>':'');
  $('hist').innerHTML=as.history.length?as.history.map(x=>'<div class="msg '+x.r+'">'+esc(x.t)+'</div>').join(''):'<div class="note" style="margin-top:12px">Na razie pusto.</div>';
  // kiosk
  $('kw').innerHTML=o.tempC==null?'—':f(o.tempC,0)+'<span style="font-size:.3em;vertical-align:top;opacity:.5">°C</span>';$('kic').innerHTML=wxGlyph(o,96).replace('<svg','<svg class="k-ic"');

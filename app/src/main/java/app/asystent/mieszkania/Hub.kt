@@ -12,6 +12,8 @@ import org.json.JSONObject
 import java.io.File
 import java.net.NetworkInterface
 import app.asystent.mieszkania.audio.ClapDetector
+import app.asystent.mieszkania.audio.Speaker
+import app.asystent.mieszkania.audio.VoiceRecorder
 import app.asystent.mieszkania.data.AdviceState
 import app.asystent.mieszkania.data.ForecastState
 import app.asystent.mieszkania.data.Forecasts
@@ -392,13 +394,15 @@ class Hub private constructor(private val app: Application) {
 
     val assistant = MutableStateFlow(AssistantState())
 
-    private fun buildAskPrompt(q: String): String {
+    private val speaker = Speaker(app)
+
+    private fun buildContext(): String {
         val o = _outdoor.value
         val i = _indoor.value
         val fc = _forecast.value
-        val ctx = buildString {
+        return buildString {
             append("Teraz: ${SimpleDateFormat("EEEE, d MMMM yyyy, 'godz.' HH:mm", pl).format(Date())}. ")
-            append("Miejsce: ${settings.city.ifBlank { "Polska" }}, Polska.\n")
+            append("Miejsce użytkownika: ${settings.city.ifBlank { "Polska" }}, Polska.\n")
             val now1 = listOfNotNull(
                 o.tempC?.let { "${fmt(it)}°C" },
                 o.code?.let { weatherText(it).lowercase(pl) },
@@ -407,54 +411,83 @@ class Hub private constructor(private val app: Application) {
             )
             if (now1.isNotEmpty()) append("Pogoda teraz: ${now1.joinToString(", ")}.\n")
             if (o.pm25 != null || o.pm10 != null) {
-                append("Jakość powietrza: ${o.airLabel.ifEmpty { "brak oceny" }} (PM2,5 ${fmt(o.pm25)} µg/m³, PM10 ${fmt(o.pm10)} µg/m³).\n")
+                append("Jakość powietrza: ${o.airLabel.ifEmpty { "brak oceny" }} (PM2,5 ${fmt(o.pm25)}, PM10 ${fmt(o.pm10)} µg/m³).\n")
             }
             if (fc.hours.isNotEmpty()) {
                 val hrs = fc.hours.drop(fc.nowIndex).take(25).filterIndexed { k, _ -> k % 3 == 0 }
                     .joinToString("; ") { "${it.label} ${fmt(it.temp, 0)}°C, opady ${it.rainPct ?: 0}%" }
-                append("Prognoza godzinowa na najbliższe 24 h: $hrs.\n")
+                append("Prognoza godzinowa na 24 h: $hrs.\n")
             }
             if (fc.days.isNotEmpty()) {
                 val ds = fc.days.joinToString("; ") { "${it.label} ${fmt(it.min, 0)} do ${fmt(it.max, 0)}°C, opady ${it.rainPct ?: 0}%" }
                 append("Prognoza na kolejne dni: $ds.\n")
             }
             if (i.tempC != null || i.humidity != null) {
-                append("Czujniki w domu: temperatura ${fmt(i.tempC)}°C, wilgotność ${fmt(i.humidity, 0)}%, ciśnienie ${fmt(i.pressure, 0)} hPa.\n")
-            } else {
-                append("Brak danych z czujników domowych.\n")
+                append("Czujniki w domu: ${fmt(i.tempC)}°C, wilgotność ${fmt(i.humidity, 0)}%, ciśnienie ${fmt(i.pressure, 0)} hPa.\n")
             }
             val light = when (_light.value.on) {
                 true -> "włączone"
                 false -> "wyłączone"
                 null -> "stan nieznany"
             }
-            append("Światło: $light.\n")
+            append("Światło w domu: $light.\n")
         }
+    }
+
+    /** Pytanie jest na pierwszym miejscu. Dane z domu to tylko pomocniczy kontekst na końcu. */
+    private fun buildAskPrompt(q: String): String {
         val hist = assistant.value.history.takeLast(6)
             .joinToString("\n") { (r, t) -> (if (r == "u") "Użytkownik: " else "Asystent: ") + t }
-        return "Dane z domu i prognoza:\n$ctx" +
-            (if (hist.isNotEmpty()) "\nDotychczasowa rozmowa:\n$hist\n" else "") +
-            "\nPytanie użytkownika: $q"
+        return (if (hist.isNotEmpty()) "Dotychczasowa rozmowa:\n$hist\n\n" else "") +
+            "Pytanie użytkownika: $q\n\n" +
+            "Kontekst pomocniczy (użyj go tylko wtedy, gdy pytanie dotyczy domu, pogody lub czasu):\n${buildContext()}"
     }
 
-    private fun finishAsk(q: String, a: String) {
-        assistant.update { it.copy(q = q, a = a, mode = "speak", history = it.history + ("u" to q) + ("a" to a)) }
-        scope.launch {
-            delay(4000)
-            assistant.update { it.copy(mode = "idle", busy = false) }
+    private fun systemPrompt(): String =
+        ASSISTANT_SYSTEM.replace("{imie}", settings.assistantName.ifBlank { "Laura" })
+
+    private fun lightIntent(low: String): Boolean? {
+        val off = low.contains("wyłącz") || low.contains("zgaś")
+        val on = low.contains("włącz") || low.contains("zapal")
+        return if (low.contains("światł") && (on || off)) !off else null
+    }
+
+    private fun speakText(text: String) {
+        speaker.speak(
+            scope, text, settings.ttsGemini, settings.geminiKey.trim(), settings.ttsModel.trim(), settings.ttsVoice,
+            onStart = { assistant.update { it.copy(mode = "speak") } },
+            onDone = { assistant.update { it.copy(mode = "idle", busy = false) } },
+            onNote = { n -> assistant.update { it.copy(note = n) } },
+        )
+    }
+
+    private fun finishAsk(q: String, a: String, note: String, speak: Boolean) {
+        assistant.update { it.copy(q = q, a = a, note = note, mode = "speak", history = it.history + ("u" to q) + ("a" to a)) }
+        if (speak && settings.speakReplies) {
+            speakText(a)
+        } else {
+            scope.launch {
+                delay(3000)
+                assistant.update { it.copy(mode = "idle", busy = false) }
+            }
         }
     }
 
-    fun ask(q: String) {
+    fun testVoice() {
+        speaker.stop()
+        speakText("Cześć, tu ${settings.assistantName.ifBlank { "Laura" }}. Tak brzmi mój głos. Mogę odpowiadać na pytania o wszystko, co znajdę w internecie.")
+    }
+
+    fun ask(q: String, speak: Boolean = true) {
         val text = q.trim()
-        if (text.isEmpty() || assistant.value.busy) return
-        val low = text.lowercase(pl)
-        val off = low.contains("wyłącz") || low.contains("zgaś")
-        val on = low.contains("włącz") || low.contains("zapal")
-        assistant.update { it.copy(q = text, a = "", busy = true, mode = "think") }
-        if (low.contains("światł") && (on || off)) {
-            setLight(!off)
-            finishAsk(text, "Wysyłam polecenie do światła.")
+        val mode = assistant.value.mode
+        if (text.isEmpty() || mode == "think" || mode == "listen") return
+        speaker.stop()
+        assistant.update { it.copy(q = text, a = "", note = "", busy = true, mode = "think") }
+        val li = lightIntent(text.lowercase(pl))
+        if (li != null) {
+            setLight(li)
+            finishAsk(text, "Wysyłam polecenie do światła.", "", speak)
             return
         }
         val key = settings.geminiKey.trim()
@@ -463,17 +496,72 @@ class Hub private constructor(private val app: Application) {
             return
         }
         val prompt = buildAskPrompt(text)
+        val model = settings.geminiModel.trim()
+        val system = systemPrompt()
         scope.launch(Dispatchers.IO) {
             try {
-                finishAsk(text, Gemini.ask(key, settings.geminiModel.trim(), ASSISTANT_SYSTEM + " Masz na imię ${settings.assistantName.ifBlank { "Laura" }}.", prompt))
+                val r = Gemini.askFull(key, model, system, Gemini.textParts(prompt))
+                finishAsk(text, r.text, r.note, speak)
             } catch (e: Exception) {
                 assistant.update { it.copy(a = e.message ?: "Błąd asystenta.", mode = "idle", busy = false) }
             }
         }
     }
 
-    private val _forecast = MutableStateFlow(ForecastState())
-    val forecast: StateFlow<ForecastState> = _forecast.asStateFlow()
+    /** Mikrofon: nagrywa pytanie, wysyła do Gemini (rozumie mowę i odpowiada z wyszukiwarką), mówi odpowiedź. */
+    fun listenAndAsk(speak: Boolean = true) {
+        val cur = assistant.value.mode
+        if (cur == "listen") {
+            VoiceRecorder.stopRequested = true
+            return
+        }
+        if (cur == "think") return
+        val key = settings.geminiKey.trim()
+        if (key.isEmpty()) {
+            assistant.update { it.copy(q = "", a = "Dodaj klucz Gemini w Ustawieniach.", note = "") }
+            return
+        }
+        speaker.stop()
+        detector.stop()
+        clapsOn.value = false
+        assistant.update { it.copy(q = "", a = "", note = "", mode = "listen", busy = true) }
+        scope.launch(Dispatchers.IO) {
+            val pcm = try {
+                VoiceRecorder.capture { micLevel.value = it }
+            } catch (e: Exception) {
+                null
+            }
+            if (settings.clapsEnabled && foreground) startDetector()
+            if (pcm == null) {
+                assistant.update { it.copy(a = "Nie usłyszałam nic. Spróbuj jeszcze raz.", mode = "idle", busy = false) }
+                return@launch
+            }
+            assistant.update { it.copy(mode = "think") }
+            try {
+                val r = Gemini.askAudio(
+                    key, settings.geminiModel.trim(), systemPrompt() + AUDIO_RULES,
+                    VoiceRecorder.wav(pcm), buildAskPrompt("(pytanie w nagraniu)"),
+                )
+                var q = ""
+                var ans = r.text
+                val m = Regex("(?s)^\\s*Q:\\s*(.*?)\\s*\\n\\s*A:\\s*(.*)$").find(r.text)
+                if (m != null) {
+                    q = m.groupValues[1].trim()
+                    ans = m.groupValues[2].trim()
+                }
+                if (q.isEmpty()) q = "(pytanie głosowe)"
+                val li = lightIntent(q.lowercase(pl))
+                if (li != null) {
+                    setLight(li)
+                    finishAsk(q, "Wysyłam polecenie do światła.", "", speak)
+                } else {
+                    finishAsk(q, ans, r.note, speak)
+                }
+            } catch (e: Exception) {
+                assistant.update { it.copy(a = e.message ?: "Błąd asystenta.", mode = "idle", busy = false) }
+            }
+        }
+    }
 
     // ---------- źródło danych zewnętrznych ----------
 
@@ -727,20 +815,30 @@ class Hub private constructor(private val app: Application) {
             .put(
                 "assistant",
                 JSONObject().put("mode", s.mode).put("q", s.q).put("a", s.a)
-                    .put("busy", s.busy).put("history", hist),
+                    .put("busy", s.busy).put("note", s.note).put("history", hist),
             )
             .toString()
     }
 }
 
 private const val ASSISTANT_SYSTEM =
-    "Jesteś osobistym asystentem domowym użytkownika (Polska). W wiadomości dostajesz dane z jego domu, " +
-        "aktualną pogodę i prognozę, a dodatkowo masz dostęp do wyszukiwarki Google. " +
-        "Zawsze odpowiadaj konkretnie na zadane pytanie: o pogodę (w tym jutro i kolejne dni), o wydarzenia na świecie " +
-        "i w Polsce, wiadomości, fakty i porady. Do bieżących wydarzeń korzystaj z wyszukiwarki. " +
-        "Nie mów, że nie masz dostępu do danych: użyj tego, co jest w wiadomości lub w wyszukiwarce. " +
-        "Jeśli czegoś naprawdę nie da się ustalić, powiedz to jednym zdaniem i podaj najlepsze przybliżenie. " +
-        "Odpowiadaj po polsku, zwięźle (zwykle 1 do 4 zdań), bez emotikon, bez wstępów i bez formatowania markdown."
+    "Jesteś {imie}, osobistą asystentką głosową użytkownika, taką jak Asystent Google, ale mądrzejszą. " +
+        "Odpowiadasz na KAŻDE pytanie, na dowolny temat: wiedza ogólna, wiadomości z Polski i świata, sport, " +
+        "finanse i kursy, nauka, technologia, zdrowie, prawo, gotowanie, podróże, kultura, tłumaczenia, obliczenia, " +
+        "pogoda, dom i wszystko inne, o co ktoś zapyta. " +
+        "Masz dostęp do wyszukiwarki Google i MASZ z niej korzystać za każdym razem, gdy pytanie dotyczy czegoś aktualnego " +
+        "lub zmiennego (wiadomości, wydarzenia, wyniki, ceny, kursy, godziny otwarcia, osoby, firmy, premiery, prawo) " +
+        "albo gdy nie jesteś pewna odpowiedzi. Dane z domu (pogoda, czujniki, światło) dostajesz tylko jako dodatkowy kontekst: " +
+        "użyj ich wyłącznie wtedy, gdy pytanie ich dotyczy. W innych sprawach pomijaj je całkowicie i nie wspominaj ani " +
+        "o pogodzie, ani o mieszkaniu. Nigdy nie mów, że nie możesz odpowiedzieć albo że nie masz dostępu do danych: " +
+        "poszukaj w internecie. Odpowiadaj po polsku, językiem mówionym, zwięźle (zwykle 1 do 4 zdań, przy złożonych " +
+        "pytaniach do 6), bez emotikon, bez markdown, bez wypunktowań i bez adresów internetowych. " +
+        "Liczby, daty i jednostki zapisuj tak, jak czyta się je na głos."
+
+private const val AUDIO_RULES =
+    " Użytkownik zadał pytanie GŁOSEM (nagranie dźwiękowe). Format odpowiedzi: pierwsza linia zaczyna się od 'Q: ' " +
+        "i zawiera dokładną transkrypcję tego, co powiedział, druga linia zaczyna się od 'A: ' i zawiera Twoją odpowiedź. " +
+        "Jeśli nagranie jest niezrozumiałe, w 'Q:' wpisz 'niezrozumiałe', a w 'A:' poproś krótko o powtórzenie."
 
 private const val BRIEF_SYSTEM =
     "Piszesz bardzo krótki dzienny briefing do panelu w domu. Użyj wyszukiwarki Google i podaj dokładnie dwie linie: " +

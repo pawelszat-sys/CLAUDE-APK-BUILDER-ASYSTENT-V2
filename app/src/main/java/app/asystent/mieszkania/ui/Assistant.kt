@@ -44,6 +44,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -133,7 +140,10 @@ fun AssistantScreen(vm: Hub) {
     LaunchedEffect(st.mode) { if (st.mode == "speak") Haptics.confirm(view) }
     var text by remember { mutableStateOf("") }
     var showHist by remember { mutableStateOf(false) }
-    var micNote by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { g ->
+        if (g) vm.listenAndAsk()
+    }
     val cfg = LocalConfiguration.current
     val wide = cfg.screenWidthDp > cfg.screenHeightDp * 1.25f
     val orbSize: Dp = if (wide) (cfg.screenHeightDp * 0.5f).dp else (cfg.screenWidthDp * 0.6f).dp
@@ -150,7 +160,7 @@ fun AssistantScreen(vm: Hub) {
         Column(Modifier.heightIn(min = 84.dp).padding(horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (st.q.isEmpty() && st.a.isEmpty()) {
                 Text(
-                    "Wybierz podpowiedź albo napisz wiadomość.",
+                    if (st.mode == "listen") "Słucham… Mów, a po skończeniu stuknij mikrofon." else "Stuknij mikrofon, wybierz podpowiedź albo napisz wiadomość.",
                     fontSize = 17.sp,
                     color = Palette.Slate,
                 )
@@ -168,18 +178,23 @@ fun AssistantScreen(vm: Hub) {
                 }
             }
         }
+        if (st.note.isNotEmpty()) {
+            Text(st.note, fontSize = 12.sp, lineHeight = 17.sp, color = Palette.Slate, textAlign = TextAlign.Center)
+        }
         Box(
             Modifier
                 .size(76.dp)
                 .clip(CircleShape)
-                .background(Palette.Lamp)
-                .clickable { micNote = true },
+                .background(if (st.mode == "listen") Palette.Signal else Palette.Lamp)
+                .clickable {
+                    Haptics.tick(view)
+                    val ok = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED
+                    if (ok) vm.listenAndAsk() else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                },
             contentAlignment = Alignment.Center,
         ) {
             PathIcon(Ic.Mic, Palette.OnLamp, 34.dp)
-        }
-        if (micNote) {
-            Text("Głos dodamy później (wake word). Na razie pisz lub wybierz podpowiedź.", fontSize = 12.sp, color = Palette.Slate)
         }
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),

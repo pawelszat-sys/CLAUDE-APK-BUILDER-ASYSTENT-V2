@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -646,6 +647,10 @@ fun SettingsScreen(vm: Hub) {
     var gKey by remember { mutableStateOf(s.geminiKey) }
     var gModel by remember { mutableStateOf(s.geminiModel) }
     var aName by remember { mutableStateOf(s.assistantName) }
+    var voice by remember { mutableStateOf(s.ttsVoice) }
+    var ttsModel by remember { mutableStateOf(s.ttsModel) }
+    var speakR by remember { mutableStateOf(s.speakReplies) }
+    var ttsG by remember { mutableStateOf(s.ttsGemini) }
     var tBase by remember { mutableStateOf(s.tuyaBase) }
     var tId by remember { mutableStateOf(s.tuyaId) }
     var tSecret by remember { mutableStateOf(s.tuyaSecret) }
@@ -716,7 +721,7 @@ fun SettingsScreen(vm: Hub) {
         }
 
         Panel {
-            Caption("Gemini (porada dnia)")
+            Caption("Gemini (asystent i briefing)")
             Spacer(Modifier.height(8.dp))
             Field("Klucz API", gKey, { gKey = it; saved = false }, secret = true)
             Spacer(Modifier.height(8.dp))
@@ -735,6 +740,59 @@ fun SettingsScreen(vm: Hub) {
             Field("Client Secret", tSecret, { tSecret = it; saved = false }, secret = true)
             Spacer(Modifier.height(8.dp))
             Field("Device ID", tDev, { tDev = it; saved = false })
+        }
+
+        Panel {
+            Caption("Głos asystenta")
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Mów odpowiedzi na głos", fontSize = 15.sp, color = Palette.Frost, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = speakR,
+                    onCheckedChange = { speakR = it; s.speakReplies = it; Haptics.tick(view) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.OnLamp, checkedTrackColor = Palette.Lamp),
+                )
+            }
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Głos Gemini (naturalniejszy)", fontSize = 15.sp, color = Palette.Frost)
+                    Text("Gdy niedostępny, użyję głosu systemowego.", fontSize = 12.sp, color = Palette.Slate)
+                }
+                Switch(
+                    checked = ttsG,
+                    onCheckedChange = { ttsG = it; s.ttsGemini = it; Haptics.tick(view) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Palette.OnLamp, checkedTrackColor = Palette.Lamp),
+                )
+            }
+            Text("Barwa głosu", fontSize = 13.sp, color = Palette.Slate, modifier = Modifier.padding(top = 10.dp))
+            Row(
+                Modifier.padding(top = 6.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    "Sulafat" to "ciepły", "Achernar" to "łagodny", "Aoede" to "swobodny",
+                    "Kore" to "stanowczy", "Leda" to "młodzieńczy", "Zephyr" to "jasny",
+                ).forEach { (v, d) ->
+                    val sel = voice == v
+                    Text(
+                        "$v, $d",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (sel) Palette.OnLamp else Palette.Frost,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (sel) Palette.Lamp else Palette.PanelHigh)
+                            .clickable { voice = v; s.ttsVoice = v; Haptics.tick(view) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Field("Model głosu", ttsModel, { ttsModel = it; saved = false })
+            OutlinedButton(
+                onClick = { s.ttsModel = ttsModel; vm.testVoice() },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                shape = RoundedCornerShape(14.dp),
+            ) { Text("Odsłuchaj głos", color = Palette.Frost) }
         }
 
         Panel {
@@ -883,6 +941,7 @@ fun SettingsScreen(vm: Hub) {
                 s.geminiKey = gKey
                 s.geminiModel = gModel
                 s.assistantName = aName
+                s.ttsModel = ttsModel
                 s.tuyaBase = tBase
                 s.tuyaId = tId
                 s.tuyaSecret = tSecret

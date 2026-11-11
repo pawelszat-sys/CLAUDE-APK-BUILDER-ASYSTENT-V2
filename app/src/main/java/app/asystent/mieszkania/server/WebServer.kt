@@ -35,7 +35,7 @@ class WebServer(private val hub: Hub, private val page: String, port: Int) : Nan
                 try {
                     session.parseBody(files)
                     val q = JSONObject(files["postData"] ?: "{}").optString("q")
-                    hub.ask(q)
+                    hub.ask(q, false)
                 } catch (e: Exception) {
                     return json(Response.Status.BAD_REQUEST, "{\"error\":\"zle zapytanie\"}")
                 }

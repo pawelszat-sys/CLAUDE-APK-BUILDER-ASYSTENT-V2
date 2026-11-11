@@ -118,4 +118,20 @@ class Settings(context: Context) {
     var briefTime: Long
         get() = p.getLong("briefTime", 0L)
         set(v) = p.edit().putLong("briefTime", v).apply()
+
+    var speakReplies: Boolean
+        get() = p.getBoolean("speakReplies", true)
+        set(v) = p.edit().putBoolean("speakReplies", v).apply()
+
+    var ttsGemini: Boolean
+        get() = p.getBoolean("ttsGemini", true)
+        set(v) = p.edit().putBoolean("ttsGemini", v).apply()
+
+    var ttsModel: String
+        get() = str("ttsModel", "gemini-2.5-flash-preview-tts")
+        set(v) = putStr("ttsModel", v)
+
+    var ttsVoice: String
+        get() = str("ttsVoice", "Sulafat")
+        set(v) = putStr("ttsVoice", v)
 }

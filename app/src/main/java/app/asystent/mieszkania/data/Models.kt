@@ -43,6 +43,7 @@ data class AssistantState(
     val q: String = "",
     val a: String = "",
     val busy: Boolean = false,
+    val note: String = "",
     val history: List<Pair<String, String>> = emptyList(),
 )
 
